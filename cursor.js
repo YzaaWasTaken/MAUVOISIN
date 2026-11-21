@@ -1,0 +1,51 @@
+(function(){
+  var mx=0,my=0,rx=0,ry=0,cursorEl,infoEl,hasMoved=false;
+  function ready(){
+    cursorEl=document.getElementById('cursor');
+    infoEl=document.getElementById('cursorInfo');
+    if(cursorEl){
+      cursorEl.classList.add('is-ready');
+      cursorEl.classList.remove('is-hidden');
+    }
+    rx=mx;ry=my;
+    loop();
+  }
+  document.addEventListener('mousemove',function(e){
+    mx=e.clientX;
+    my=e.clientY;
+    hasMoved=true;
+    if(cursorEl){
+      cursorEl.classList.add('is-ready');
+      cursorEl.classList.remove('is-hidden');
+    }
+  },{passive:true});
+  window.addEventListener('mousemove',function(e){
+    mx=e.clientX;
+    my=e.clientY;
+    hasMoved=true;
+    if(cursorEl){
+      cursorEl.classList.add('is-ready');
+      cursorEl.classList.remove('is-hidden');
+    }
+  },{passive:true});
+  function loop(){
+    rx+=(mx-rx)*0.18;
+    ry+=(my-ry)*0.18;
+    if(cursorEl){
+      cursorEl.style.transform='translate('+rx+'px,'+ry+'px)';
+      if(hasMoved){
+        cursorEl.classList.add('is-ready');
+        cursorEl.classList.remove('is-hidden');
+      }
+    }
+    if(infoEl){
+      infoEl.style.transform='translate('+(mx+16)+'px,'+(my+16)+'px)';
+    }
+    requestAnimationFrame(loop);
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',ready);
+  } else {
+    ready();
+  }
+})();

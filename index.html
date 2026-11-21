@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>MAUVOISIN.</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="cursor" id="cursor">
+  <div class="cursor__dot"></div>
+  <div class="cursor__ring"></div>
+</div>
+<div class="cursor-info" id="cursorInfo"></div>
+
+
+<!-- HEADER -->
+<header class="header" id="header">
+  <div class="header__logo" data-cursor-title="MAUVOISIN." onclick="goHome()">MAUVOISIN<span>.</span></div>
+  <nav class="header__menu">
+    <a class="header__nav-item is-active" data-nav="projects" data-cursor-title="PROJECTS" onclick="switchView('projects');return false;"><span>Projects</span></a>
+    <a class="header__nav-item" data-nav="about" data-cursor-title="ABOUT" onclick="switchView('about');return false;"><span>About</span></a>
+    <a class="header__nav-item" data-nav="articles" data-cursor-title="ARTICLES" onclick="switchView('articles');return false;"><span>Articles</span></a>
+  </nav>
+  <div class="header__spacer"></div>
+  <div class="header__meta">
+    <div class="header__coord" id="coord">45.46°N 9.19°E</div>
+    <div class="header__clock" id="clock">00:00:00</div>
+    <div class="header__toggle" id="themeToggle" data-cursor-title="THEME" onclick="toggleTheme()">
+      <div class="header__toggle-dot"></div>
+      <span id="toggleLabel">DARK</span>
+    </div>
+    <div class="header__toggle" id="audioToggleBtn" data-cursor-title="AUDIO" onclick="toggleAudioPanel()" style="display:none">
+      <div class="header__toggle-dot"></div>
+      <span>AUDIO</span>
+    </div>
+          <span>UPLOAD</spa  </div>
+    <div class="header__contact" data-cursor-title="CONTACT" onclick="openContact()"><span>Contact</span></div>
+  </div>
+</header>
+
+<!-- PROJECTS -->
+<main class="view is-active" id="view-projects">
+  <div class="filterbar" id="filterbar">
+    <span class="filterbar__label">FILTER</span>
+    <div id="tagFilters" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+    <button class="filterbar__reset" data-cursor-title="RESET" onclick="clearFilter()">RESET</button>
+    <button class="filterbar__reset" id="orderToggleBtn" data-cursor-title="REORDER" onclick="toggleReorder()">↕ ORDER</button>
+    <span class="filterbar__spacer"></span>
+    <span class="filterbar__label">COLS</span>
+    <div class="cols-selector" id="colsSelector">
+      <span class="cols-btn" data-cols="2" onclick="setGalleryCols(2)">2</span>
+      <span class="cols-btn" data-cols="3" onclick="setGalleryCols(3)">3</span>
+      <span class="cols-btn is-active" data-cols="4" onclick="setGalleryCols(4)">4</span>
+      <span class="cols-btn" data-cols="5" onclick="setGalleryCols(5)">5</span>
+    </div>
+  </div>
+  <section class="gallery" id="gallery"></section>
+  <div class="gallery__empty" id="galleryEmpty" style="display:none">
+    <p>NO WORKS YET</p>
+    <p style="font-size:10px;opacity:.6">Click UPLOAD in the header to add your first piece.</p>
+  </div>
+  <footer class="gallery__foot">
+    <span>MAUVOISIN. — ALL RIGHTS RESERVED</span>
+    <span class="gallery__foot-lock" data-cursor-key="PROTECTED" data-cursor-val="ARCHIVE">◈ LOCAL SECURE STORAGE</span>
+    <span id="footCount">0 WORKS</span>
+  </footer>
+</main>
+
+<!-- ABOUT -->
+<main class="view" id="view-about">
+  <div class="about-layout">
+    <aside class="about-sidebar">
+      <div class="about-sidebar__header">
+        <span>BRANCHES</span>
+        <button class="about-sidebar__add" data-cursor-title="NEW BRANCH" onclick="addBranch()">+ NEW</button>
+      </div>
+      <div id="branchList"></div>
+      <div class="about-sidebar__search">
+        <input type="text" id="aboutSearch" placeholder="SEARCH TAGS..." oninput="filterSheets()">
+      </div>
+      <div class="about-sidebar__tags" id="aboutTags"></div>
+      <div class="about-sidebar__foot" id="aboutFoot">SELECT A BRANCH</div>
+    </aside>
+    <div class="about-desk" id="aboutDesk">
+      <div class="about-desk__toolbar" id="aboutDeskToolbar" style="display:none">
+        <button class="about-desk__btn about-desk__btn--primary" onclick="addSheet()">+ 添加 SHEET</button>
+        <button class="about-desk__btn" onclick="openCreateSticky()">✎ 新增便利贴</button>
+        <button class="about-desk__btn" onclick="tidyDesk()">⊞ 整理对齐</button>
+        <button class="about-desk__btn" onclick="scatterDesk()">⤮ 随意摆放</button>
+        <button class="about-desk__btn" onclick="saveDeskLayout()">⭑ 初始摆放</button>
+        <button class="about-desk__btn" onclick="restoreDeskLayout()">↺ 恢复初始</button>
+      </div>
+      <div class="about-desk__empty" id="aboutEmpty">
+        <p>Select or create a branch to start arranging your archive.</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- ARTICLES -->
+<main class="view" id="view-articles">
+  <div class="articles-layout">
+    <aside class="articles-sidebar">
+      <div class="articles-sidebar__header">
+        <span>FOLDERS</span>
+        <button class="articles-sidebar__add" data-cursor-title="NEW FOLDER" onclick="addArticleFolder()">+ NEW</button>
+      </div>
+      <div id="articleFolderList"></div>
+      <div class="articles-sidebar__foot" id="articleSidebarFoot">SELECT A FOLDER</div>
+    </aside>
+    <div class="articles-content" id="articlesContent">
+      <div class="articles-empty" id="articlesEmpty">
+        <p>Select or create a folder to start writing.</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- ARTICLE READER / EDITOR -->
+<div class="article-reader" id="articleReader">
+  <div class="article-reader__bar">
+    <span class="article-reader__back" data-cursor-title="BACK" onclick="closeArticleReader()">‹ BACK</span>
+    <span class="article-reader__title-bar" id="articleReaderTitle">—</span>
+    <div class="article-reader__actions" id="articleReaderActions"></div>
+  </div>
+  <div class="article-reader__body" id="articleReaderBody"></div>
+  <div class="article-toc" id="articleToc"></div>
+  <div class="article-lock-badge">◈ LOCKED — READ ONLY</div>
+</div>
+
+<!-- VIEWER (detail) -->
+<div class="viewer" id="viewer">
+  <button class="viewer__close" data-cursor-title="CLOSE" onclick="closeViewer()">×</button>
+  <button class="viewer__nav viewer__nav--prev" data-cursor-title="PREV" onclick="viewerPrev()">‹</button>
+  <button class="viewer__nav viewer__nav--next" data-cursor-title="NEXT" onclick="viewerNext()">›</button>
+  <div class="viewer__inner" id="viewerInner"></div>
+</div>
+
+<!-- SHEET BACKDROP -->
+<div class="sheet__backdrop" id="sheetBackdrop" onclick="closeSheet()"></div>
+
+<!-- AUDIO PLAYER -->
+<div class="audio-player" id="audioPlayer">
+  <button class="audio-player__btn" id="audioToggle" onclick="toggleAudio()">▶</button>
+  <div class="audio-player__info">
+    <div class="audio-player__title" id="audioTitle">—</div>
+    <div class="audio-player__time" id="audioTime">0:00 / 0:00</div>
+  </div>
+  <div class="audio-player__seek" id="audioSeek" onclick="seekAudio(event)">
+    <div class="audio-player__seek-fill" id="audioSeekFill"></div>
+  </div>
+  <button class="audio-player__btn" data-cursor-title="TRACKS" onclick="toggleAudioPanel()">≡</button>
+</div>
+<div class="audio-player__list" id="audioList"></div>
+<audio id="audioEl" preload="metadata"></audio>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal()"></div>
+<div class="modal" id="modal">
+  <div class="modal__header">
+    <span class="modal__title" id="modalTitle">—</span>
+    <button class="modal__close" onclick="closeModal()">×</button>
+  </div>
+  <div class="modal__body" id="modalBody"></div>
+  <div class="modal__footer" id="modalFooter"></div>
+</div>
+
+<div id="toast"></div>
+<script src="cursor.js"></script>
+<script src="deploy.js"></script>
+</body>
+</html>

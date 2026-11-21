@@ -1,0 +1,17 @@
+# 备份文件（含原始高清图，体积太大，不上传）
+MAUVOISIN_BACKUP_*.json
+
+# Python 缓存
+__pycache__/
+
+# macOS 系统文件
+.DS_Store
+
+# 本地开发版 JS（GitHub Pages 用 deploy.js）
+app.js
+
+# 发布脚本（只在本地用）
+publish.py
+
+# deploy.html 的原始副本（已被复制为 index.html）
+deploy.html
