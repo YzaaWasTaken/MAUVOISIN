@@ -1610,6 +1610,40 @@ function openStickyEditor(stickyId){
     `<option value="${b.id}" ${b.id === (s.branchId || APP.activeBranch) ? 'selected' : ''}>${esc(b.name)}</option>`
   ).join('');
 
+  const FONT_GROUPS = [
+    ['英文手写体 / ENGLISH SCRIPT', [
+      ["'Caveat','Ma Shan Zheng',cursive", 'Caveat · 随性连笔'],
+      ["'Dancing Script','Long Cang',cursive", 'Dancing Script · 优雅连笔'],
+      ["'Great Vibes','Zhi Mang Xing',cursive", 'Great Vibes · 花体签名'],
+      ["'Homemade Apple','Liu Jian Mao Cao',cursive", 'Homemade Apple · 随性粗手'],
+      ["'Pacifico','ZCOOL KuaiLe',cursive", 'Pacifico · 圆润马克笔'],
+      ["'Indie Flower','Ma Shan Zheng',cursive", 'Indie Flower · 童趣手写'],
+      ["'Kalam','Long Cang',cursive", 'Kalam · 手绘马克'],
+      ["'Shadows Into Light','Zhi Mang Xing',cursive", 'Shadows Into Light · 铅笔细字'],
+      ["'Rock Salt','Liu Jian Mao Cao',cursive", 'Rock Salt · 粗铅涂鸦'],
+      ["'Satisfy','Ma Shan Zheng',cursive", 'Satisfy · 潇洒手写'],
+      ["'Lobster','ZCOOL KuaiLe',cursive", 'Lobster · 招牌手写'],
+      ["'Just Another Hand','Long Cang',cursive", 'Just Another Hand · 大写涂鸦']
+    ]],
+    ['中文手写体 / CHINESE HAND', [
+      ["'Ma Shan Zheng','Caveat',cursive", '马善政 · 毛笔楷书'],
+      ["'Long Cang','Dancing Script',cursive", '龙藏 · 行书'],
+      ["'Zhi Mang Xing','Great Vibes',cursive", '志莽行书 · 草书'],
+      ["'Liu Jian Mao Cao','Homemade Apple',cursive", '刘建毛草 · 狂草'],
+      ["'ZCOOL KuaiLe','Pacifico',cursive", '站酷快乐体 · 圆润']
+    ]],
+    ['基础字体 / BASIC', [
+      ['var(--sans)', '现代无衬线 (Inter)'],
+      ['var(--mono)', '硬核代码风 (Mono)'],
+      ['cursive', '随性手写体 (Cursive)'],
+      ['Georgia, serif', '复古衬线 (Serif)']
+    ]]
+  ];
+  const fontOpts = FONT_GROUPS.map(([label, items]) =>
+    `<optgroup label="${label}">` + items.map(([v, n]) =>
+      `<option value="${v}" ${s.fontFamily === v ? 'selected' : ''}>${n}</option>`).join('') + '</optgroup>'
+  ).join('');
+
   const body = `
     <div class="field">
       <label class="field__label">所属分支 / 文件夹</label>
@@ -1637,12 +1671,7 @@ function openStickyEditor(stickyId){
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <div class="field">
         <label class="field__label">字体风格</label>
-        <select class="field__input" id="edStickyFont">
-          <option value="var(--sans)" ${s.fontFamily==='var(--sans)'?'selected':''}>现代无衬线 (Inter)</option>
-          <option value="var(--mono)" ${s.fontFamily==='var(--mono)'?'selected':''}>硬核代码风 (Mono)</option>
-          <option value="cursive" ${s.fontFamily==='cursive'?'selected':''}>随性手写体 (Cursive)</option>
-          <option value="Georgia, serif" ${s.fontFamily==='Georgia, serif'?'selected':''}>复古衬线 (Serif)</option>
-        </select>
+        <select class="field__input" id="edStickyFont">${fontOpts}</select>
       </div>
       <div class="field">
         <label class="field__label">字体大小</label>
