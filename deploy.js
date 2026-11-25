@@ -777,7 +777,7 @@ function renderSheets(){
           ${s.title ? `<div class="sticky-note__title">${esc(s.title)}</div>` : ''}
           <div class="sticky-note__body">${esc(s.content || '')}</div>
           ${s.scribble ? `<img src="${s.scribble}" style="width:100%;height:auto;margin-top:6px;border:1px solid rgba(0,0,0,.1);pointer-events:none" draggable="false">` : ''}
-          <div class="sticky-note__meta">STICKY · ${formatDate(s.created)}</div>
+          <div class="sticky-note__meta">STICKY${s.attachedTo ? ' · 定装' : ''} · ${formatDate(s.created)}</div>
         </div>
       `;
     } else {
@@ -2300,7 +2300,7 @@ function switchView(view){
   document.querySelectorAll('.view').forEach(v => v.classList.remove('is-active'));
   document.getElementById('view-'+view).classList.add('is-active');
   document.querySelectorAll('.header__nav-item').forEach(n => n.classList.toggle('is-active', n.dataset.nav===view));
-  if(view==='about' && document.getElementById('branchList')) renderAbout();
+  if(view==='about') renderAbout();
   if(view==='projects') renderProjects();
   if(view==='articles') renderArticles();
 }

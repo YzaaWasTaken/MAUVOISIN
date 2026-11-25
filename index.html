@@ -70,33 +70,34 @@
   </footer>
 </main>
 
-<!-- ABOUT — VISUAL ARCHIVE / JOURNAL DESK (local session only) -->
-<main class="view jrl-ui" id="view-about">
-  <div class="jrl-shell">
-    <aside class="jrl-rail">
-      <div class="jrl-rail__head">
-        <span>CHARACTER FILES</span>
-        <button class="jrl-btn jrl-btn--solid" id="jrlNewProfile" data-cursor-title="NEW PROFILE">+ NEW</button>
+<!-- ABOUT -->
+<main class="view" id="view-about">
+  <div class="about-layout">
+    <aside class="about-sidebar">
+      <div class="about-sidebar__header">
+        <span>BRANCHES</span>
+        <button class="about-sidebar__add" data-cursor-title="NEW BRANCH" onclick="addBranch()">+ NEW</button>
       </div>
-      <div class="jrl-profiles" id="jrlProfiles"></div>
-      <div class="jrl-rail__foot" id="jrlHint">SELECT A FILE TO OPEN ITS BOOK</div>
+      <div id="branchList"></div>
+      <div class="about-sidebar__search">
+        <input type="text" id="aboutSearch" placeholder="SEARCH TAGS..." oninput="filterSheets()">
+      </div>
+      <div class="about-sidebar__tags" id="aboutTags"></div>
+      <div class="about-sidebar__foot" id="aboutFoot">SELECT A BRANCH</div>
     </aside>
-    <section class="jrl-desk">
-      <div class="jrl-desk__top">
-        <span class="jrl-desk__label">ON THE DESK</span>
-        <div class="jrl-desk__tools">
-          <button class="jrl-btn" id="jrlUploadLoose" data-cursor-title="UPLOAD IMAGE">+ 上传图片</button>
-          <input type="file" id="jrlLooseInput" accept="image/*" multiple hidden>
-        </div>
+    <div class="about-desk" id="aboutDesk">
+      <div class="about-desk__toolbar" id="aboutDeskToolbar" style="display:none">
+        <button class="about-desk__btn about-desk__btn--primary" onclick="addSheet()">+ 添加 SHEET</button>
+        <button class="about-desk__btn" onclick="openCreateSticky()">✎ 新增便利贴</button>
+        <button class="about-desk__btn" onclick="tidyDesk()">⊞ 整理对齐</button>
+        <button class="about-desk__btn" onclick="scatterDesk()">⤮ 随意摆放</button>
+        <button class="about-desk__btn" onclick="saveDeskLayout()">⭑ 初始摆放</button>
+        <button class="about-desk__btn" onclick="restoreDeskLayout()">↺ 恢复初始</button>
       </div>
-      <div class="jrl-desk__canvas" id="jrlCanvas">
-        <div class="jrl-desk__empty" id="jrlEmpty">NO FILES ON THE DESK YET</div>
+      <div class="about-desk__empty" id="aboutEmpty">
+        <p>Select or create a branch to start arranging your archive.</p>
       </div>
-      <div class="jrl-desk__foot">
-        <span>DRAG TO ARRANGE · CLICK A BOOK TO READ</span>
-        <span id="jrlCount">0 OBJECTS</span>
-      </div>
-    </section>
+    </div>
   </div>
 </main>
 
@@ -170,6 +171,6 @@
 <div id="toast"></div>
 <script src="cursor.js"></script>
 <script src="deploy.js"></script>
-<script src="journal.js"></script>
+<script src="readonly.js"></script>
 </body>
 </html>
