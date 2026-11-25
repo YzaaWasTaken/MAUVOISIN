@@ -718,11 +718,36 @@ function computeSheetDim(s, item){
   return { w, h: Math.round(w * 1.25) };
 }
 
+// 层级规范：z 恒为紧凑的 1..N（数值越大越靠上）。
+// 历史数据曾把所有纸堆到 2147483647（被浏览器钳制），导致拖动置顶失效。
+function normalizeZOrder(){
+  const list = APP.sheets.slice().sort((a,b) => (a.z || 0) - (b.z || 0));
+  list.forEach((s, i) => { s.z = i + 1; });
+  APP.deskMaxZ = list.length + 1;
+  return list;
+}
+// 把某张纸所在的整棵装订组合移到最上层，其余数字组依次靠后一位
+function raiseGroupToTop(sheet){
+  const root = findBindRoot(sheet) || sheet;
+  const gids = new Set([root.id]);
+  bindDescendants(root.id).forEach(s => gids.add(s.id));
+  const list = APP.sheets.slice().sort((a,b) => (a.z || 0) - (b.z || 0));
+  const moved = list.filter(s => gids.has(s.id));
+  const rest  = list.filter(s => !gids.has(s.id));
+  rest.concat(moved).forEach((s, i) => { s.z = i + 1; });
+  APP.deskMaxZ = list.length + 1;
+  APP.sheets.forEach(s => {
+    const node = document.querySelector(`.sheet[data-id="${s.id}"]`);
+    if(node) node.style.zIndex = s.z;
+  });
+}
+
 function renderSheets(){
   const desk = document.getElementById('aboutDesk');
   const empty = document.getElementById('aboutEmpty');
   const toolbar = document.getElementById('aboutDeskToolbar');
   desk.querySelectorAll('.sheet').forEach(s => s.remove());
+  normalizeZOrder();
 
   let sheets = APP.sheets.filter(s => s.branchId === APP.activeBranch);
 
@@ -1080,17 +1105,17 @@ function initDragHandlers(){
       if(DESK_PHYSICS.targetEl) DESK_PHYSICS.targetEl.classList.remove('is-bind-target');
 
       if(DESK_PHYSICS.hasMoved){
+        if(window.SFX) SFX.drop();
         const root = DESK_PHYSICS.root || sheet;
         const rootEl = document.querySelector(`.sheet[data-id="${root.id}"]`);
         root.x = parseFloat((rootEl && rootEl.dataset.x) || root.x);
         root.y = parseFloat((rootEl && rootEl.dataset.y) || root.y);
         // 子级坐标已在 mousemove 中按根实时坐标写入，装订相对偏移保持不变
       }
-      // 始终保存 z 值（mousedown 时 bringSheetToFront 已更新 sheet.z）
-      sheet.z = parseInt(el.style.zIndex || 1);
+      // z 已由 raiseGroupToTop 统一为紧凑值，勿从 style.zIndex 回读（浏览器会钳制到 2147483647）
       delete sheet.__liveX; delete sheet.__liveY;
-      const persist = new Set([sheet.id]);
-      if(DESK_PHYSICS.group) DESK_PHYSICS.group.forEach(id => persist.add(id));
+      // 持久化所有发生层级变动的纸
+      const persist = new Set(APP.sheets.map(s => s.id));
       for(const id of persist){
         const rec = APP.sheets.find(x => x.id === id);
         if(rec){ delete rec.__liveX; delete rec.__liveY; await idbPut('sheets', rec); }
@@ -1116,17 +1141,9 @@ function initDragHandlers(){
   });
 }
 
-// 触摸/抓起纸张：瞬间将其提升至绝对物理最顶层
+// 抓起纸张：整棵装订组合一起升到最顶层，其余数字组依次靠后一位
 function bringSheetToFront(el, sheet){
-  APP.deskMaxZ = Math.max(APP.deskMaxZ + 1, (sheet.z || 0) + 1);
-  el.style.zIndex = APP.deskMaxZ;
-  sheet.z = APP.deskMaxZ;
-  // 装订的文件始终压在底层文件之上（含多层嵌套）
-  bindDescendants(sheet.id).forEach(s => {
-    s.z = ++APP.deskMaxZ;
-    const se = document.querySelector(`.sheet[data-id="${s.id}"]`);
-    if(se) se.style.zIndex = s.z;
-  });
+  raiseGroupToTop(sheet);
 }
 
 function makeDraggable(el, sheet){
@@ -1135,6 +1152,9 @@ function makeDraggable(el, sheet){
     if(el.classList.contains('is-focused')) return;
     if(e.target.closest('.sheet__quick-bar')) return;
     if(e.button !== 0) return;
+
+    // 抓起音效：按纸张类型区分（图片 / 档案 / 便利贴）
+    if(window.SFX) SFX.pickSheet(sheet);
 
     // 1. 抓住装订组任意成员时，都以根纸为基准抬起并置顶整棵树
     const root = findBindRoot(sheet);
@@ -2676,6 +2696,7 @@ function tickClock(){
 }
 
 function switchView(view){
+  if(APP.view !== view && window.SFX) SFX.view();
   APP.view = view;
   document.querySelectorAll('.view').forEach(v => v.classList.remove('is-active'));
   document.getElementById('view-'+view).classList.add('is-active');
@@ -2716,6 +2737,7 @@ async function init(){
     APP.aboutMedia = (data.aboutMedia || []).map(it => ({ ...it, blob: null }));
     APP.branches = data.branches || [];
     APP.sheets = data.sheets || [];
+    normalizeZOrder(); // 修复历史超大 z，统一为紧凑 1..N
     APP.articleFolders = data.articleFolders || [];
     APP.articles = data.articles || [];
     APP.deskLayouts = data.deskLayouts || {};
