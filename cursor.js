@@ -1,28 +1,26 @@
 /* ============================================================
-   MAUVOISIN. — silky trailing cursor
-   Fast catch-up, slow settle (ease-out) on every pointer move.
-   Always the topmost page layer; pointer-events: none.
+   MAUVOISIN. — two-speed cursor
+   Inner dot: 1:1 with the pointer, zero delay.
+   Outer ring: slight ease-out lag — fast catch-up, soft settle.
+   Always topmost, pointer-events: none.
    ============================================================ */
 (function () {
   'use strict';
 
-  var FOLLOW_MS = 560;   // cursor catch-up duration
-  var INFO_MS = 300;     // label follows a little quicker
+  var RING_MS = 260;  // short, noticeable-but-quick delay
 
-  // easeOutExpo: big movement first, then a long soft tail
   function easeOut(t) {
-    return t >= 1 ? 1 : 1 - Math.pow(2, -9 * t);
+    return t >= 1 ? 1 : 1 - Math.pow(2, -7 * t);
   }
 
   var px = window.innerWidth / 2, py = window.innerHeight / 2;
-  var cx = px, cy = py;      // rendered cursor position
-  var ix = px, iy = py;      // rendered label position
-  var fromCX = px, fromCY = py, toX = px, toY = py, startC = 0;
-  var fromIX = px, fromIY = py, startI = 0;
-  var cursorEl = null, infoEl = null, moved = false;
+  var rx = px, ry = py;                 // ring rendered position
+  var fromX = px, fromY = py, startTime = 0;
+  var cursorEl = null, ringEl = null, infoEl = null, moved = false;
 
   function refresh() {
     cursorEl = document.getElementById('cursor');
+    ringEl = cursorEl ? cursorEl.querySelector('.cursor__ring') : null;
     infoEl = document.getElementById('cursorInfo');
     if (cursorEl) {
       cursorEl.classList.add('is-ready');
@@ -31,16 +29,13 @@
   }
 
   function onMove(e) {
-    var now = performance.now();
-    toX = e.clientX;
-    toY = e.clientY;
+    px = e.clientX;
+    py = e.clientY;
     moved = true;
 
-    // restart from the current rendered position: no teleport, no jitter
-    fromCX = cx; fromCY = cy;
-    fromIX = ix; fromIY = iy;
-    startC = now;
-    startI = now;
+    // restart the ring's ease from wherever it currently is
+    fromX = rx; fromY = ry;
+    startTime = performance.now();
 
     if (!cursorEl) refresh();
     if (cursorEl) {
@@ -59,20 +54,22 @@
   });
 
   function frame(now) {
-    var tc = Math.min(1, (now - startC) / FOLLOW_MS);
-    var ti = Math.min(1, (now - startI) / INFO_MS);
-    var ec = easeOut(tc), ei = easeOut(ti);
+    var t = Math.min(1, (now - startTime) / RING_MS);
+    var k = easeOut(t);
+    rx = fromX + (px - fromX) * k;
+    ry = fromY + (py - fromY) * k;
 
-    cx = fromCX + (toX - fromCX) * ec;
-    cy = fromCY + (toY - fromCY) * ec;
-    ix = fromIX + (toX - fromIX) * ei;
-    iy = fromIY + (toY - fromIY) * ei;
-
+    // container sits exactly on the pointer → inner dot is 1:1
     if (cursorEl) {
-      cursorEl.style.transform = 'translate3d(' + cx.toFixed(2) + 'px,' + cy.toFixed(2) + 'px,0)';
+      cursorEl.style.transform = 'translate3d(' + px.toFixed(2) + 'px,' + py.toFixed(2) + 'px,0)';
+    }
+    // ring is offset inside the container by its own lag
+    if (ringEl) {
+      var dx = rx - px, dy = ry - py;
+      ringEl.style.transform = 'translate(calc(-50% + ' + dx.toFixed(2) + 'px), calc(-50% + ' + dy.toFixed(2) + 'px))';
     }
     if (infoEl) {
-      infoEl.style.transform = 'translate3d(' + (ix + 18).toFixed(2) + 'px,' + (iy + 18).toFixed(2) + 'px,0)';
+      infoEl.style.transform = 'translate3d(' + (px + 18).toFixed(2) + 'px,' + (py + 18).toFixed(2) + 'px,0)';
     }
     if (moved && cursorEl) {
       cursorEl.classList.add('is-ready');
@@ -84,12 +81,12 @@
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function () {
       refresh();
-      startC = startI = performance.now();
+      startTime = performance.now();
       requestAnimationFrame(frame);
     });
   } else {
     refresh();
-    startC = startI = performance.now();
+    startTime = performance.now();
     requestAnimationFrame(frame);
   }
 })();
