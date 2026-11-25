@@ -253,6 +253,10 @@ img,video{-webkit-user-drag:none;user-select:none}
   cursor:grabbing;
   transition:none!important;
 }
+/* 整组拖动/旋转：装订组合内的每一张都同帧到达，无先慢后快 */
+.sheet.is-group-dragging{
+  transition:none!important;
+}
 .sheet.is-dragging .sheet__inner{
   transform:scale(1.035);
   box-shadow:0 20px 45px rgba(0,0,0,.75),0 8px 16px rgba(0,0,0,.45);

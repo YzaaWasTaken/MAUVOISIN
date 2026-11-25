@@ -37,11 +37,13 @@
     var nodes = document.querySelectorAll(BAD);
     for (var i = 0; i < nodes.length; i++) nodes[i].remove();
 
-    // keep only the focus button in the desk quick-bar
+    // deployed view: no per-sheet controls (focus button removed too)
     document.querySelectorAll('.sheet__quick-bar').forEach(function (bar) {
-      bar.querySelectorAll('button').forEach(function (b) {
-        if (b.textContent.indexOf('聚焦') < 0) b.remove();
-      });
+      bar.querySelectorAll('button').forEach(function (b) { b.remove(); });
+    });
+    // hide any "已装订" style label text on deployed sheets
+    document.querySelectorAll('.sticky-note__meta').forEach(function (m) {
+      m.textContent = m.textContent.replace(/已装订/g, '').replace(/^\s*·\s*/, '').replace(/\s*·\s*·/g, ' · ');
     });
 
     var toolbar = document.getElementById('aboutDeskToolbar');
