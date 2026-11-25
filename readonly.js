@@ -15,6 +15,7 @@
     'tidyDesk', 'scatterDesk', 'saveDeskLayout', 'restoreDeskLayout',
     'openCreateSticky', 'openStickyEditor', 'saveSticky', 'toggleScribble',
     'setScribbleColor', 'setScribbleSize', 'clearScribble', 'deleteSheet',
+    'toggleBind', 'openArchiveUpload', 'confirmArchiveUpload',
     'openSheetEditor', 'saveSheet', 'addArticleFolder', 'renameArticleFolder',
     'deleteArticleFolder', 'createArticle', 'deleteArticle', 'toggleArticleLock',
     'saveArticle', 'execEditor', 'setArticleFont', 'updateTOC'

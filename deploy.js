@@ -14,6 +14,8 @@ const APP = {
   viewerIndex: 0, cursorX: 0, cursorY: 0,
   deskLayouts: {} // branchId -> {x,y,rot,z,scale,ratio}[] 初始摆放快照
 };
+const BIND_CAND = {};   // 装订候选（仅本次会话，不落库）
+let ARCHIVE_VIEW_ID = null;
 
 /* ============================================================
    INDEXEDDB
@@ -708,7 +710,7 @@ function computeSheetDim(s, item){
 
   if(item && item.w && item.h && item.w > 0 && item.h > 0){
     const h = Math.round(w * (item.h / item.w));
-    return { w, h: Math.min(Math.max(h, 100), 550) };
+    return { w, h: Math.max(80, h) };
   }
   return { w, h: Math.round(w * 1.25) };
 }
@@ -744,8 +746,10 @@ function renderSheets(){
   sheets.sort((a,b) => (a.z||0) - (b.z||0));
 
   sheets.forEach((s, i) => {
-    const item = s.isSticky ? null : APP.aboutMedia.find(it => it.id === s.itemId);
-    if(!s.isSticky && !item) return;
+    const item = s.isArchive
+      ? (APP.aboutMedia.find(it => it.id === (s.pages || [])[s.pageIndex || 0]) || null)
+      : (s.isSticky ? null : APP.aboutMedia.find(it => it.id === s.itemId));
+    if(s.isArchive ? !item : (!s.isSticky && !item)) return;
 
     const matches = !searchTags.length || searchTags.every(st =>
       (s.tags||[]).some(t => t.toLowerCase().includes(st))
@@ -777,7 +781,7 @@ function renderSheets(){
           ${s.title ? `<div class="sticky-note__title">${esc(s.title)}</div>` : ''}
           <div class="sticky-note__body">${esc(s.content || '')}</div>
           ${s.scribble ? `<img src="${s.scribble}" style="width:100%;height:auto;margin-top:6px;border:1px solid rgba(0,0,0,.1);pointer-events:none" draggable="false">` : ''}
-          <div class="sticky-note__meta">STICKY${s.attachedTo ? ' · 定装' : ''} · ${formatDate(s.created)}</div>
+          <div class="sticky-note__meta">STICKY${(s.boundTo || s.attachedTo) ? ' · 已装订' : ''} · ${formatDate(s.created)}</div>
         </div>
       `;
     } else {
@@ -785,7 +789,14 @@ function renderSheets(){
       img.src = item.src || blobUrl(item.blob);
       img.alt = item.title || '';
       img.draggable = false;
+      img.style.objectFit = (s.ratio && s.ratio !== 'auto') ? 'cover' : 'contain';
       inner.appendChild(img);
+      if(s.isArchive){
+        const badge = document.createElement('div');
+        badge.className = 'sheet__pages';
+        badge.textContent = (s.pages || []).length + ' P';
+        inner.appendChild(badge);
+      }
     }
     el.appendChild(inner);
 
@@ -798,6 +809,14 @@ function renderSheets(){
       <button class="sheet-btn sheet-btn--del" title="彻底移出桌面" onclick="event.stopPropagation();deleteSheet('${s.id}')">×</button>
     `;
     el.appendChild(bar);
+
+    const isBound = Boolean(s.boundTo || s.attachedTo);
+    const bindBtn = document.createElement('button');
+    bindBtn.className = 'sheet__bind' + (isBound ? ' is-bound' : (BIND_CAND[s.id] ? ' is-ready' : ''));
+    bindBtn.textContent = isBound ? '已装订' : '装订';
+    bindBtn.title = '部署版为只读：装订关系由编辑版保存后同步显示';
+    bindBtn.disabled = true;
+    el.appendChild(bindBtn);
 
     if(matches) makeDraggable(el, s);
     desk.appendChild(el);
@@ -869,11 +888,70 @@ const DESK_PHYSICS = {
   startY: 0,
   origX: 0,
   origY: 0,
-  hasMoved: false
+  hasMoved: false,
+  candidate: null,
+  targetEl: null
 };
 
 // 全局桌面最高层级计数器
 APP.deskMaxZ = 100;
+
+/* ---------- 装订（同频组合）---------- */
+function childrenOfBind(id){
+  return APP.sheets.filter(s => (s.boundTo || s.attachedTo) === id);
+}
+function bindDescendants(id){
+  const out = [], stack = childrenOfBind(id), seen = {};
+  while(stack.length){
+    const s = stack.shift();
+    if(seen[s.id]) continue;
+    seen[s.id] = 1;
+    out.push(s);
+    childrenOfBind(s.id).forEach(c => stack.push(c));
+  }
+  return out;
+}
+function bindOffset(s){
+  return {
+    x: s.bx !== undefined ? s.bx : (s.ax || 0),
+    y: s.by !== undefined ? s.by : (s.ay || 0)
+  };
+}
+// 与底层文件同频移动：同一次 mousemove 内直接写 transform，无延迟
+function moveBoundDescendants(sheet, baseX, baseY){
+  bindDescendants(sheet.id).forEach(child => {
+    const off = bindOffset(child);
+    const parent = APP.sheets.find(x => x.id === (child.boundTo || child.attachedTo));
+    child.x = (parent ? (parent.x || 0) : baseX) + off.x;
+    child.y = (parent ? (parent.y || 0) : baseY) + off.y;
+    const ce = document.querySelector(`.sheet[data-id="${child.id}"]`);
+    if(ce){
+      ce.dataset.x = child.x;
+      ce.dataset.y = child.y;
+      ce.style.transform = `translate(${child.x}px, ${child.y}px) rotate(${child.rot || 0}deg)`;
+    }
+  });
+}
+function findBindCandidate(el, sheet){
+  // 用几何重叠判定，避免指针超出桌面可视区或被光标层遮挡时漏判
+  const dr = el.getBoundingClientRect();
+  const descendants = bindDescendants(sheet.id).map(d => d.id);
+  const hits = [];
+  APP.sheets.forEach(t => {
+    if(t.id === sheet.id || descendants.indexOf(t.id) >= 0) return;
+    const te = document.querySelector(`.sheet[data-id="${t.id}"]`);
+    if(!te || te.classList.contains('is-filtered-out')) return;
+    const tr = te.getBoundingClientRect();
+    const ox = Math.max(0, Math.min(dr.right, tr.right) - Math.max(dr.left, tr.left));
+    const oy = Math.max(0, Math.min(dr.bottom, tr.bottom) - Math.max(dr.top, tr.top));
+    const area = ox * oy;
+    const threshold = Math.min(dr.width * dr.height, tr.width * tr.height) * 0.12;
+    if(area > threshold) hits.push({ sheet: t, el: te, area, z: t.z || 0 });
+  });
+  if(!hits.length) return null;
+  hits.sort((a, b) => b.z - a.z || b.area - a.area);
+  return { sheet: hits[0].sheet, el: hits[0].el };
+}
 
 function initDragHandlers(){
   // 监听桌面空白处点击：取消所有聚焦纸张，回归自然桌面全貌
@@ -902,6 +980,20 @@ function initDragHandlers(){
     
     // 拖动时保持当前自然角度
     DESK_PHYSICS.el.style.transform = `translate(${curX}px, ${curY}px) rotate(${DESK_PHYSICS.sheet.rot || 0}deg)`;
+
+    // 已装订的文件同一帧同频跟随
+    moveBoundDescendants(DESK_PHYSICS.sheet, curX, curY);
+
+    // 悬停到另一张纸上方 → 装订按钮点亮（部署版只读，仅视觉提示）
+    if(DESK_PHYSICS.hasMoved){
+      const cand = findBindCandidate(DESK_PHYSICS.el, DESK_PHYSICS.sheet);
+      if(DESK_PHYSICS.targetEl) DESK_PHYSICS.targetEl.classList.remove('is-bind-target');
+      DESK_PHYSICS.candidate = cand;
+      DESK_PHYSICS.targetEl = cand ? cand.el : null;
+      if(cand) cand.el.classList.add('is-bind-target');
+      const bb = DESK_PHYSICS.el.querySelector('.sheet__bind');
+      if(bb) bb.classList.toggle('is-ready', Boolean(cand));
+    }
   });
 
   document.addEventListener('mouseup', async () => {
@@ -909,24 +1001,35 @@ function initDragHandlers(){
     DESK_PHYSICS.active = false;
 
     if(DESK_PHYSICS.el){
-      DESK_PHYSICS.el.classList.remove('is-dragging');
-
+      const el = DESK_PHYSICS.el;
       const sheet = DESK_PHYSICS.sheet;
+      el.classList.remove('is-dragging');
+      if(DESK_PHYSICS.targetEl) DESK_PHYSICS.targetEl.classList.remove('is-bind-target');
+
       if(DESK_PHYSICS.hasMoved){
-        sheet.x = parseFloat(DESK_PHYSICS.el.dataset.x || 0);
-        sheet.y = parseFloat(DESK_PHYSICS.el.dataset.y || 0);
+        sheet.x = parseFloat(el.dataset.x || 0);
+        sheet.y = parseFloat(el.dataset.y || 0);
+        const parent = APP.sheets.find(x => x.id === (sheet.boundTo || sheet.attachedTo));
+        if(parent){
+          sheet.bx = (sheet.x || 0) - (parent.x || 0);
+          sheet.by = (sheet.y || 0) - (parent.y || 0);
+          delete sheet.ax; delete sheet.ay;
+        }
+        moveBoundDescendants(sheet, sheet.x, sheet.y);
       }
       // 始终保存 z 值（mousedown 时 bringSheetToFront 已更新 sheet.z）
-      sheet.z = parseInt(DESK_PHYSICS.el.style.zIndex || 1);
+      sheet.z = parseInt(el.style.zIndex || 1);
       await idbPut('sheets', sheet);
 
       if(!DESK_PHYSICS.hasMoved){
-        handleSheetClick(DESK_PHYSICS.el, sheet);
+        handleSheetClick(el, sheet);
       }
     }
 
     DESK_PHYSICS.el = null;
     DESK_PHYSICS.sheet = null;
+    DESK_PHYSICS.candidate = null;
+    DESK_PHYSICS.targetEl = null;
     DESK_PHYSICS.hasMoved = false;
   });
 }
@@ -936,6 +1039,12 @@ function bringSheetToFront(el, sheet){
   APP.deskMaxZ = Math.max(APP.deskMaxZ + 1, (sheet.z || 0) + 1);
   el.style.zIndex = APP.deskMaxZ;
   sheet.z = APP.deskMaxZ;
+  // 装订的文件始终压在底层文件之上（含多层嵌套）
+  bindDescendants(sheet.id).forEach(s => {
+    s.z = ++APP.deskMaxZ;
+    const se = document.querySelector(`.sheet[data-id="${s.id}"]`);
+    if(se) se.style.zIndex = s.z;
+  });
 }
 
 function makeDraggable(el, sheet){
@@ -969,11 +1078,175 @@ function makeDraggable(el, sheet){
 // 如果没有移动（hasMoved=false），则视为单击 → 聚焦打开
 function handleSheetClick(el, sheet){
   if(!el || !sheet) return;
+  if(sheet.isArchive){ openArchiveViewer(sheet.id); return; }
   if(el.classList.contains('is-focused')){
     unfocusAllSheets();
   } else {
     focusSheet(sheet.id);
   }
+}
+
+/* ============================================================
+   装订 / 档案多页上传与查看
+   ============================================================ */
+async function toggleBind(id){
+  const s = APP.sheets.find(x => x.id === id);
+  if(!s) return;
+  if(s.boundTo || s.attachedTo){
+    const parent = APP.sheets.find(x => x.id === (s.boundTo || s.attachedTo));
+    const off = bindOffset(s);
+    if(parent){ s.x = (parent.x || 0) + off.x; s.y = (parent.y || 0) + off.y; }
+    delete s.boundTo; delete s.attachedTo; delete s.bx; delete s.by; delete s.ax; delete s.ay;
+    delete BIND_CAND[id];
+    await idbPut('sheets', s);
+    renderSheets();
+    toast('已解除装订', true);
+    return;
+  }
+  const targetId = BIND_CAND[id];
+  const target = targetId && APP.sheets.find(x => x.id === targetId);
+  if(!target){ toast('先把这张纸拖到另一张图片或便签上方'); return; }
+  s.boundTo = target.id;
+  s.bx = (s.x || 0) - (target.x || 0);
+  s.by = (s.y || 0) - (target.y || 0);
+  s.z = Math.max(target.z || 0, APP.deskMaxZ) + 1;
+  APP.deskMaxZ = s.z;
+  delete BIND_CAND[id];
+  await idbPut('sheets', s);
+  bindDescendants(s.id).forEach(c => { c.z = ++APP.deskMaxZ; idbPut('sheets', c); });
+  renderSheets();
+  toast('已装订 · 将同频一起移动', true);
+}
+
+function openArchiveUpload(){
+  if(!APP.activeBranch){
+    if(APP.branches.length > 0) APP.activeBranch = APP.branches[0].id;
+    else { toast('请先新建一个分支'); return; }
+  }
+  const body = `
+    <div class="field">
+      <label class="field__label">选择档案图片（可多选，按顺序叠放；支持角色档案页导出的 PNG）</label>
+      <input type="file" id="archiveFiles" accept="image/*" multiple class="field__input">
+    </div>
+    <div class="field">
+      <label class="field__label">桌面尺寸</label>
+      <select class="field__input" id="archiveScale">
+        <option value="sm">小号 (160px)</option>
+        <option value="md" selected>中号 (220px)</option>
+        <option value="lg">大号 (300px)</option>
+        <option value="xl">大号 (400px)</option>
+      </select>
+    </div>
+    <p style="font-size:10px;opacity:.65;line-height:1.6">多张会组合为一个档案叠，桌面只显示最上面一张；一起拖动，点开可左右翻页。</p>
+  `;
+  openModal('UPLOAD ARCHIVE', body, `
+    <button class="admin-btn" onclick="closeModal()">CANCEL</button>
+    <button class="admin-btn admin-btn--primary" onclick="confirmArchiveUpload()">加入桌面</button>
+  `);
+}
+
+async function confirmArchiveUpload(){
+  const input = document.getElementById('archiveFiles');
+  const files = input ? Array.from(input.files).filter(f => f.type.startsWith('image/')) : [];
+  if(!files.length){ toast('请先选择档案图片'); return; }
+  const desk = document.getElementById('aboutDesk');
+  const dw = desk.clientWidth - 300, dh = desk.clientHeight - 360;
+  const ids = [];
+  let w0 = 0, h0 = 0;
+  for(const file of files){
+    const dim = await new Promise(res => {
+      const img = new Image();
+      img.onload = () => res({ w: img.naturalWidth, h: img.naturalHeight });
+      img.onerror = () => res({ w: 1240, h: 1754 });
+      img.src = URL.createObjectURL(file);
+    });
+    const id = 'it_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+    const media = {
+      id, type: 'image', title: file.name.replace(/\.[^.]+$/, '').toUpperCase(),
+      tags: [], note: '', blob: file, size: '1x1', w: dim.w, h: dim.h, created: Date.now()
+    };
+    await idbPut('aboutMedia', media);
+    APP.aboutMedia.push(media);
+    ids.push(id);
+    if(!w0){ w0 = dim.w; h0 = dim.h; }
+  }
+  const sheet = {
+    id: 'sh_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6),
+    branchId: APP.activeBranch, isArchive: true, pages: ids, pageIndex: 0,
+    scale: document.getElementById('archiveScale').value, ratio: 'auto',
+    tags: [], w: w0, h: h0,
+    x: 40 + Math.random() * Math.max(20, dw),
+    y: 40 + Math.random() * Math.max(20, dh),
+    rot: (Math.random() * 10 - 5), z: Date.now(), created: Date.now()
+  };
+  await idbPut('sheets', sheet);
+  APP.sheets.push(sheet);
+  closeModal();
+  renderBranches();
+  renderSheets();
+  toast('档案已加入桌面（' + ids.length + ' 页）', true);
+}
+
+function ensureArchiveViewer(){
+  if(document.getElementById('archiveViewer')) return;
+  const ov = document.createElement('div');
+  ov.id = 'archiveViewer';
+  ov.className = 'archive-viewer';
+  ov.innerHTML = `
+    <div class="archive-viewer__bar">
+      <button id="archiveViewerPrev" title="上一页">‹</button>
+      <span id="archiveViewerCount">1 / 1</span>
+      <button id="archiveViewerNext" title="下一页">›</button>
+      <button id="archiveViewerClose" title="关闭">×</button>
+    </div>
+    <img id="archiveViewerImg" alt="ARCHIVE PAGE">
+    <div class="archive-viewer__hint">← → 翻页 · ESC 关闭</div>
+  `;
+  document.body.appendChild(ov);
+  document.getElementById('archiveViewerPrev').onclick = () => archiveViewerNav(-1);
+  document.getElementById('archiveViewerNext').onclick = () => archiveViewerNav(1);
+  document.getElementById('archiveViewerClose').onclick = closeArchiveViewer;
+  ov.addEventListener('click', e => { if(e.target === ov) closeArchiveViewer(); });
+  document.addEventListener('keydown', e => {
+    if(!ov.classList.contains('is-open')) return;
+    if(e.key === 'Escape') closeArchiveViewer();
+    else if(e.key === 'ArrowLeft') archiveViewerNav(-1);
+    else if(e.key === 'ArrowRight') archiveViewerNav(1);
+  });
+}
+function openArchiveViewer(sheetId){
+  const s = APP.sheets.find(x => x.id === sheetId);
+  if(!s || !s.isArchive) return;
+  ensureArchiveViewer();
+  ARCHIVE_VIEW_ID = sheetId;
+  document.getElementById('archiveViewer').classList.add('is-open');
+  renderArchiveViewer();
+}
+function renderArchiveViewer(){
+  const s = APP.sheets.find(x => x.id === ARCHIVE_VIEW_ID);
+  if(!s){ closeArchiveViewer(); return; }
+  const pages = s.pages || [];
+  const idx = s.pageIndex || 0;
+  const item = APP.aboutMedia.find(it => it.id === pages[idx]);
+  const img = document.getElementById('archiveViewerImg');
+  img.src = item ? (item.src || blobUrl(item.blob)) : '';
+  document.getElementById('archiveViewerCount').textContent = (idx + 1) + ' / ' + pages.length;
+  document.getElementById('archiveViewerPrev').disabled = idx <= 0;
+  document.getElementById('archiveViewerNext').disabled = idx >= pages.length - 1;
+}
+function archiveViewerNav(dir){
+  const s = APP.sheets.find(x => x.id === ARCHIVE_VIEW_ID);
+  if(!s) return;
+  const pages = s.pages || [];
+  s.pageIndex = Math.max(0, Math.min(pages.length - 1, (s.pageIndex || 0) + dir));
+  idbPut('sheets', s);
+  renderArchiveViewer();
+  renderSheets();
+}
+function closeArchiveViewer(){
+  const ov = document.getElementById('archiveViewer');
+  if(ov) ov.classList.remove('is-open');
+  ARCHIVE_VIEW_ID = null;
 }
 
 /* ============================================================
@@ -2430,6 +2703,12 @@ window.filterSheets = filterSheets;
 window.closeSheet = closeSheet;
 window.focusSheet = focusSheet;
 window.unfocusAllSheets = unfocusAllSheets;
+window.toggleBind = toggleBind;
+window.openArchiveUpload = openArchiveUpload;
+window.confirmArchiveUpload = confirmArchiveUpload;
+window.openArchiveViewer = openArchiveViewer;
+window.archiveViewerNav = archiveViewerNav;
+window.closeArchiveViewer = closeArchiveViewer;
 window.addArticleFolder = addArticleFolder;
 window.renameArticleFolder = renameArticleFolder;
 window.deleteArticleFolder = deleteArticleFolder;
