@@ -213,18 +213,7 @@ function renderProjects(){
       el.appendChild(tw);
     }
 
-    const chip = document.createElement('div');
-    chip.className = 'edit-chip';
-    chip.textContent = 'EDIT';
-    chip.onclick = (e) => { e.stopPropagation(); openItemEditor(item.id); };
-    el.appendChild(chip);
-
-    const sc = document.createElement('div');
-    sc.className = 'size-chip';
-    sc.textContent = SIZE_LABELS[el.dataset.size] || '1×1';
-    sc.title = 'CLICK TO CHANGE SIZE';
-    sc.onclick = (e) => { e.stopPropagation(); cycleItemSize(item.id); };
-    el.appendChild(sc);
+    /* VIEW ONLY: edit / resize controls intentionally removed */
 
     grid.appendChild(el);
   });
@@ -412,7 +401,7 @@ function renderViewer(){
   mediaHTML += '</div>';
 
   const tagsHTML = (item.tags||[]).map(t =>
-    `<span class="viewer__tag">${esc(t)}<button class="viewer__tag-remove" onclick="removeTagFromViewer('${escAttr(t)}')">×</button></span>`
+    `<span class="viewer__tag">${esc(t)}</span>`
   ).join('');
 
   inner.innerHTML = `
@@ -421,14 +410,7 @@ function renderViewer(){
       <div class="viewer__title">${esc(item.title||'UNTITLED')}</div>
       ${item.note ? `<div class="viewer__note">${esc(item.note)}</div>` : ''}
       <div class="viewer__tags">${tagsHTML}</div>
-      <div class="viewer__edit">
-        <button class="admin-btn" onclick="openItemEditor('${item.id}')">EDIT</button>
-        <button class="admin-btn admin-btn--danger" onclick="deleteItem('${item.id}')">DELETE</button>
-      </div>
-      <div class="viewer__add-tag">
-        <input type="text" id="viewerTagInput" placeholder="ADD TAG..." onkeydown="if(event.key==='Enter')addTagToViewer()">
-        <button onclick="addTagToViewer()">+</button>
-      </div>
+      <!-- VIEW ONLY: no edit / tag / delete controls -->
       <div class="viewer__meta">${item.type.toUpperCase()} · ${item.id.slice(-6)}</div>
     </div>
   `;
@@ -1691,11 +1673,10 @@ function renderArticleList(){
   let html = '<div class="articles-list">';
   html += '<div class="articles-list__header">';
   html += '<span class="articles-list__title">' + esc(folder ? folder.name : 'FOLDER') + '</span>';
-  html += '<button class="articles-list__add" data-cursor-title="NEW ARTICLE" onclick="createArticle()">+ NEW ARTICLE</button>';
   html += '</div>';
 
   if(!docs.length){
-    html += '<div class="articles-empty"><p>No articles yet. Click "+ NEW ARTICLE" to start writing.</p></div>';
+    html += '<div class="articles-empty"><p>No articles in this folder.</p></div>';
   } else {
     docs.forEach(d => {
       const excerpt = stripHtml(d.content || '').slice(0, 80);
@@ -1708,11 +1689,7 @@ function renderArticleList(){
       if(excerpt) html += '<div class="doc-card__excerpt">' + esc(excerpt) + '</div>';
       html += '<div class="doc-card__meta">' + dateStr + (d.locked ? ' · LOCKED' : ' · DRAFT') + '</div>';
       html += '</div>';
-      html += '<div class="doc-card__actions">';
-      html += '<span class="doc-card__action" onclick="event.stopPropagation();openArticleReader(\'' + d.id + '\')">OPEN</span>';
-      html += '<span class="doc-card__action" onclick="event.stopPropagation();toggleArticleLock(\'' + d.id + '\')">' + (d.locked ? 'UNLOCK' : 'LOCK') + '</span>';
-      html += '<span class="doc-card__action doc-card__action--danger" onclick="event.stopPropagation();deleteArticle(\'' + d.id + '\')">DEL</span>';
-      html += '</div>';
+      html += '<span class="doc-card__action">OPEN</span>';
       html += '</div>';
     });
   }
@@ -1764,7 +1741,7 @@ function openArticleReader(id, editMode){
   const a = APP.articles.find(x => x.id === id);
   if(!a) return;
   APP.activeArticle = id;
-  APP.articleEditMode = editMode && !a.locked;
+  APP.articleEditMode = false; // VIEW ONLY
 
   const reader = document.getElementById('articleReader');
   const body = document.getElementById('articleReaderBody');
@@ -1776,46 +1753,10 @@ function openArticleReader(id, editMode){
   reader.classList.add('is-open');
   document.body.classList.add('modal-open');
 
-  actions.innerHTML = '';
-  if(APP.articleEditMode){
-    const saveBtn = document.createElement('button');
-    saveBtn.className = 'article-reader__btn article-reader__btn--primary';
-    saveBtn.textContent = 'SAVE';
-    saveBtn.onclick = () => saveArticle();
-    actions.appendChild(saveBtn);
-
-    const cancelBtn = document.createElement('button');
-    cancelBtn.className = 'article-reader__btn';
-    cancelBtn.textContent = 'CANCEL';
-    cancelBtn.onclick = () => closeArticleReader();
-    actions.appendChild(cancelBtn);
-
-    body.innerHTML = buildEditorHTML(a);
-    initEditor();
-  } else {
-    if(!a.locked){
-      const editBtn = document.createElement('button');
-      editBtn.className = 'article-reader__btn article-reader__btn--primary';
-      editBtn.textContent = 'EDIT';
-      editBtn.onclick = () => { closeArticleReader(); openArticleReader(id, true); };
-      actions.appendChild(editBtn);
-    }
-    const lockBtn = document.createElement('button');
-    lockBtn.className = 'article-reader__btn';
-    lockBtn.textContent = a.locked ? 'UNLOCK' : 'LOCK';
-    lockBtn.onclick = async () => { await toggleArticleLock(id); closeArticleReader(); openArticleReader(id, false); };
-    actions.appendChild(lockBtn);
-
-    const delBtn = document.createElement('button');
-    delBtn.className = 'article-reader__btn article-reader__btn--danger';
-    delBtn.textContent = 'DELETE';
-    delBtn.onclick = async () => { await deleteArticle(id); closeArticleReader(); };
-    actions.appendChild(delBtn);
-
-    body.innerHTML = buildReaderHTML(a);
-    generateTOC();
-    reader.scrollTop = 0;
-  }
+  actions.innerHTML = '<span class="article-reader__readonly">◈ READ ONLY</span>';
+  body.innerHTML = buildReaderHTML(a);
+  generateTOC();
+  reader.scrollTop = 0;
 }
 
 function buildReaderHTML(a){
@@ -2359,7 +2300,7 @@ function switchView(view){
   document.querySelectorAll('.view').forEach(v => v.classList.remove('is-active'));
   document.getElementById('view-'+view).classList.add('is-active');
   document.querySelectorAll('.header__nav-item').forEach(n => n.classList.toggle('is-active', n.dataset.nav===view));
-  if(view==='about') renderAbout();
+  if(view==='about' && document.getElementById('branchList')) renderAbout();
   if(view==='projects') renderProjects();
   if(view==='articles') renderArticles();
 }

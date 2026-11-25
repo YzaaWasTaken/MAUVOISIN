@@ -15,3 +15,6 @@ publish.py
 
 # deploy.html 的原始副本（已被复制为 index.html）
 deploy.html
+
+# 本地可编辑入口（不部署）
+editor.html
