@@ -258,9 +258,22 @@ img,video{-webkit-user-drag:none;user-select:none}
 .sheet.is-group-dragging{
   transition:none!important;
 }
-.sheet.is-dragging .sheet__inner{
+.sheet.is-dragging .sheet__inner,
+.sheet.is-lifted .sheet__inner{
   transform:scale(1.035);
   box-shadow:0 20px 45px rgba(0,0,0,.75),0 8px 16px rgba(0,0,0,.45);
+}
+/* 装订组合内每张纸都跟随整组拿起/放下，视觉与被拖对象一致 */
+.sheet.is-lifted .sheet__inner{
+  transition:transform .18s var(--ease),box-shadow .18s var(--ease);
+}
+@keyframes sheetDrop{
+  0%{transform:scale(1.035);box-shadow:0 20px 45px rgba(0,0,0,.75),0 8px 16px rgba(0,0,0,.45)}
+  62%{transform:scale(.986);box-shadow:0 8px 22px rgba(0,0,0,.5),0 3px 8px rgba(0,0,0,.32)}
+  100%{transform:scale(1);box-shadow:0 4px 16px rgba(0,0,0,.5),0 1px 4px rgba(0,0,0,.3)}
+}
+.sheet.is-dropped .sheet__inner{
+  animation:sheetDrop .28s var(--ease) both;
 }
 
 /* 桌面内原地聚焦放大（Focus View） */

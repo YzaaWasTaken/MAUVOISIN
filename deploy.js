@@ -958,6 +958,22 @@ function markGroupDragging(sheet, on){
   });
   return group;
 }
+// 装订组合的拿起/放下微动画：组内每一张表现都与被拖对象一致
+function setGroupLift(group, on){
+  if(!group) return;
+  group.forEach(id => {
+    const el = document.querySelector(`.sheet[data-id="${id}"]`);
+    if(!el) return;
+    el.classList.remove('is-dropped');
+    if(on){ el.classList.add('is-lifted'); }
+    else{
+      el.classList.remove('is-lifted');
+      void el.offsetWidth;
+      el.classList.add('is-dropped');
+      setTimeout(() => el.classList.remove('is-dropped'), 320);
+    }
+  });
+}
 function findBindCandidate(el, sheet){
   // 用几何重叠判定，避免指针超出桌面可视区或被光标层遮挡时漏判
   const dr = el.getBoundingClientRect();
@@ -1004,6 +1020,7 @@ function initDragHandlers(){
     if(Math.hypot(dx, dy) > 4 && !DESK_PHYSICS.groupLocked){
       DESK_PHYSICS.groupLocked = true;
       markGroupDragging(DESK_PHYSICS.sheet, true);
+      setGroupLift(DESK_PHYSICS.group, true);
     }
     DESK_PHYSICS.el.dataset.x = curX;
     DESK_PHYSICS.el.dataset.y = curY;
@@ -1064,7 +1081,10 @@ function initDragHandlers(){
       }
     }
 
-    if(DESK_PHYSICS.group) markGroupDragging(DESK_PHYSICS.sheet, false);
+    if(DESK_PHYSICS.group){
+      if(DESK_PHYSICS.groupLocked) setGroupLift(DESK_PHYSICS.group, false);
+      markGroupDragging(DESK_PHYSICS.sheet, false);
+    }
     DESK_PHYSICS.el = null;
     DESK_PHYSICS.sheet = null;
     DESK_PHYSICS.candidate = null;
