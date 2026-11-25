@@ -1,22 +1,25 @@
 /* ============================================================
-   MAUVOISIN. — slow, low-FPS cursor
-   Always on the topmost page layer (pointer-events: none).
-   Hardware pointer only; the native cursor is hidden by CSS.
+   MAUVOISIN. — silky trailing cursor
+   Fast catch-up, slow settle (ease-out) on every pointer move.
+   Always the topmost page layer; pointer-events: none.
    ============================================================ */
 (function () {
   'use strict';
 
-  var FPS = 13;                       // low frame-rate texture
-  var TICK = Math.round(1000 / FPS);  // ~77ms per visual update
-  var EASE = 0.085;                   // lazy trailing delay
+  var FOLLOW_MS = 560;   // cursor catch-up duration
+  var INFO_MS = 300;     // label follows a little quicker
 
-  var mx = window.innerWidth / 2,
-      my = window.innerHeight / 2,
-      rx = mx,
-      ry = my,
-      cursorEl = null,
-      infoEl = null,
-      moved = false;
+  // easeOutExpo: big movement first, then a long soft tail
+  function easeOut(t) {
+    return t >= 1 ? 1 : 1 - Math.pow(2, -9 * t);
+  }
+
+  var px = window.innerWidth / 2, py = window.innerHeight / 2;
+  var cx = px, cy = py;      // rendered cursor position
+  var ix = px, iy = py;      // rendered label position
+  var fromCX = px, fromCY = py, toX = px, toY = py, startC = 0;
+  var fromIX = px, fromIY = py, startI = 0;
+  var cursorEl = null, infoEl = null, moved = false;
 
   function refresh() {
     cursorEl = document.getElementById('cursor');
@@ -28,9 +31,17 @@
   }
 
   function onMove(e) {
-    mx = e.clientX;
-    my = e.clientY;
+    var now = performance.now();
+    toX = e.clientX;
+    toY = e.clientY;
     moved = true;
+
+    // restart from the current rendered position: no teleport, no jitter
+    fromCX = cx; fromCY = cy;
+    fromIX = ix; fromIY = iy;
+    startC = now;
+    startI = now;
+
     if (!cursorEl) refresh();
     if (cursorEl) {
       cursorEl.classList.add('is-ready');
@@ -47,33 +58,38 @@
     if (cursorEl) cursorEl.classList.remove('is-hidden');
   });
 
-  function frame() {
-    // The dot/ring lag behind the real pointer; the info tag follows faster.
-    rx += (mx - rx) * EASE;
-    ry += (my - ry) * EASE;
+  function frame(now) {
+    var tc = Math.min(1, (now - startC) / FOLLOW_MS);
+    var ti = Math.min(1, (now - startI) / INFO_MS);
+    var ec = easeOut(tc), ei = easeOut(ti);
+
+    cx = fromCX + (toX - fromCX) * ec;
+    cy = fromCY + (toY - fromCY) * ec;
+    ix = fromIX + (toX - fromIX) * ei;
+    iy = fromIY + (toY - fromIY) * ei;
+
     if (cursorEl) {
-      cursorEl.style.transform = 'translate3d(' + rx.toFixed(2) + 'px,' + ry.toFixed(2) + 'px,0)';
+      cursorEl.style.transform = 'translate3d(' + cx.toFixed(2) + 'px,' + cy.toFixed(2) + 'px,0)';
     }
     if (infoEl) {
-      infoEl.style.transform = 'translate3d(' + (mx + 18).toFixed(2) + 'px,' + (my + 18).toFixed(2) + 'px,0)';
+      infoEl.style.transform = 'translate3d(' + (ix + 18).toFixed(2) + 'px,' + (iy + 18).toFixed(2) + 'px,0)';
     }
     if (moved && cursorEl) {
       cursorEl.classList.add('is-ready');
       cursorEl.classList.remove('is-hidden');
     }
+    requestAnimationFrame(frame);
   }
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function () {
       refresh();
-      rx = mx; ry = my;
-      frame();
-      setInterval(frame, TICK);
+      startC = startI = performance.now();
+      requestAnimationFrame(frame);
     });
   } else {
     refresh();
-    rx = mx; ry = my;
-    frame();
-    setInterval(frame, TICK);
+    startC = startI = performance.now();
+    requestAnimationFrame(frame);
   }
 })();
