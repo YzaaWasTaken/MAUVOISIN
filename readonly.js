@@ -25,7 +25,7 @@
 
   var BAD = [
     '.edit-chip', '.size-chip', '.viewer__edit', '.viewer__add-tag',
-    '.admin-btn', '.about-branch__rename', '.articles-list__add',
+    '.admin-btn', '.about-sidebar__add', '.about-branch__rename', '.articles-list__add',
     '.editor-toolbar', '.article-reader__btn', '.scribble-toggle',
     '#orderToggleBtn', '[contenteditable]'
   ].join(',');

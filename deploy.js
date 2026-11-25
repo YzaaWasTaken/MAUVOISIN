@@ -16,6 +16,9 @@ const APP = {
 };
 const BIND_CAND = {};   // 装订候选（仅本次会话，不落库）
 let ARCHIVE_VIEW_ID = null;
+const MOBILE_QUERY = '(max-width: 768px), (pointer: coarse)';
+const mobileMQ = window.matchMedia ? window.matchMedia(MOBILE_QUERY) : null;
+function isMobileLayout(){ return mobileMQ ? mobileMQ.matches : window.innerWidth <= 768; }
 
 /* ============================================================
    INDEXEDDB
@@ -759,17 +762,24 @@ function renderSheets(){
     const rot = s.rot !== undefined ? s.rot : ((hashCode(s.id) % 14) - 7);
     const x = s.x !== undefined ? s.x : (60 + (i * 45) % 360);
     const y = s.y !== undefined ? s.y : (60 + (i * 35) % 240);
+    const mobile = isMobileLayout();
 
     const el = document.createElement('div');
     el.className = 'sheet' + (matches ? '' : ' is-filtered-out');
     el.dataset.id = s.id;
     el.dataset.cursorTitle = s.isSticky ? (s.title || 'STICKY NOTE') : (item.title || '');
-    el.style.width = dim.w + 'px';
-    el.style.height = dim.h + 'px';
     el.style.zIndex = s.z || (i + 1);
-    el.dataset.x = x; 
-    el.dataset.y = y;
-    el.style.transform = `translate(${x}px,${y}px) rotate(${rot}deg)`;
+    if(mobile){
+      // 手机/触屏：卡片流布局，保留原纸张比例但不写死桌面坐标
+      el.classList.add('sheet--mobile');
+      el.style.setProperty('--sheet-ratio', dim.w + ' / ' + dim.h);
+    } else {
+      el.style.width = dim.w + 'px';
+      el.style.height = dim.h + 'px';
+      el.dataset.x = x;
+      el.dataset.y = y;
+      el.style.transform = `translate(${x}px,${y}px) rotate(${rot}deg)`;
+    }
 
     const inner = document.createElement('div');
     inner.className = 'sheet__inner';
@@ -817,7 +827,15 @@ function renderSheets(){
     bindBtn.disabled = true;
     el.appendChild(bindBtn);
 
-    if(matches) makeDraggable(el, s);
+    if(mobile){
+      // 卡片流不需要物理拖拽；轻点直接打开预览
+      if(matches) el.addEventListener('click', (e) => {
+        if(e.target.closest('.sheet__quick-bar')) return;
+        handleSheetClick(el, s);
+      });
+    } else if(matches) {
+      makeDraggable(el, s);
+    }
     desk.appendChild(el);
   });
 
@@ -1142,6 +1160,16 @@ function makeDraggable(el, sheet){
 function handleSheetClick(el, sheet){
   if(!el || !sheet) return;
   if(sheet.isArchive){ openArchiveViewer(sheet.id); return; }
+  if(isMobileLayout()){
+    if(sheet.isSticky){
+      openModal(sheet.title || 'STICKY NOTE',
+        `<div style="line-height:1.7;white-space:pre-wrap">${esc(sheet.content || '')}</div>`,
+        `<button class="gallery__empty-btn" onclick="closeModal()">CLOSE</button>`);
+    } else {
+      openArchiveViewer(sheet.id);
+    }
+    return;
+  }
   if(el.classList.contains('is-focused')){
     unfocusAllSheets();
   } else {
@@ -1277,9 +1305,15 @@ function ensureArchiveViewer(){
     else if(e.key === 'ArrowRight') archiveViewerNav(1);
   });
 }
+// 档案叠有多页；普通 SHEET 视为单页图片，手机端共用同一个全屏预览层
+function sheetPages(s){
+  if(!s) return [];
+  if(s.isArchive) return s.pages || [];
+  return s.itemId ? [s.itemId] : [];
+}
 function openArchiveViewer(sheetId){
   const s = APP.sheets.find(x => x.id === sheetId);
-  if(!s || !s.isArchive) return;
+  if(!s || !sheetPages(s).length) return;
   ensureArchiveViewer();
   ARCHIVE_VIEW_ID = sheetId;
   document.getElementById('archiveViewer').classList.add('is-open');
@@ -1288,7 +1322,7 @@ function openArchiveViewer(sheetId){
 function renderArchiveViewer(){
   const s = APP.sheets.find(x => x.id === ARCHIVE_VIEW_ID);
   if(!s){ closeArchiveViewer(); return; }
-  const pages = s.pages || [];
+  const pages = sheetPages(s);
   const idx = s.pageIndex || 0;
   const item = APP.aboutMedia.find(it => it.id === pages[idx]);
   const img = document.getElementById('archiveViewerImg');
@@ -1300,7 +1334,8 @@ function renderArchiveViewer(){
 function archiveViewerNav(dir){
   const s = APP.sheets.find(x => x.id === ARCHIVE_VIEW_ID);
   if(!s) return;
-  const pages = s.pages || [];
+  const pages = sheetPages(s);
+  if(pages.length < 2) return;
   s.pageIndex = Math.max(0, Math.min(pages.length - 1, (s.pageIndex || 0) + dir));
   idbPut('sheets', s);
   renderArchiveViewer();
@@ -2698,9 +2733,14 @@ async function init(){
   initDragHandlers();
   initReorderHandlers();
 
+  let wasMobile = isMobileLayout();
   window.addEventListener('resize', () => {
     computeUnit();
     renderProjects();
+    if(isMobileLayout() !== wasMobile){
+      wasMobile = isMobileLayout();
+      if(APP.view === 'about') renderSheets();
+    }
   });
 }
 
