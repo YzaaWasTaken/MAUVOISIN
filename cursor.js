@@ -7,10 +7,10 @@
 (function () {
   'use strict';
 
-  var RING_MS = 260;  // short, noticeable-but-quick delay
+  var RING_MS = 150;  // crisp, barely-there lag
 
   function easeOut(t) {
-    return t >= 1 ? 1 : 1 - Math.pow(2, -7 * t);
+    return t >= 1 ? 1 : 1 - Math.pow(2, -10 * t);
   }
 
   var px = window.innerWidth / 2, py = window.innerHeight / 2;
@@ -45,7 +45,6 @@
   }
 
   document.addEventListener('mousemove', onMove, { passive: true });
-  window.addEventListener('mousemove', onMove, { passive: true });
   document.addEventListener('mouseleave', function () {
     if (cursorEl) cursorEl.classList.add('is-hidden');
   });
