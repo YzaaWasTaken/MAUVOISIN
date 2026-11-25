@@ -765,7 +765,7 @@ function renderSheets(){
     const mobile = isMobileLayout();
 
     const el = document.createElement('div');
-    el.className = 'sheet' + (matches ? '' : ' is-filtered-out');
+    el.className = 'sheet' + (s.isSticky ? ' is-sticky' : '') + (matches ? '' : ' is-filtered-out');
     el.dataset.id = s.id;
     el.dataset.cursorTitle = s.isSticky ? (s.title || 'STICKY NOTE') : (item.title || '');
     el.style.zIndex = s.z || (i + 1);
@@ -782,7 +782,7 @@ function renderSheets(){
     }
 
     const inner = document.createElement('div');
-    inner.className = 'sheet__inner';
+    inner.className = 'sheet__inner' + (s.isSticky ? '' : ' is-media');
 
     if(s.isSticky){
       const colorCls = s.color ? `sticky--${s.color}` : 'sticky--yellow';
@@ -819,14 +819,7 @@ function renderSheets(){
     `;
     el.appendChild(bar);
 
-    const isBound = Boolean(s.boundTo || s.attachedTo);
-    const bindBtn = document.createElement('button');
-    bindBtn.className = 'sheet__bind' + (isBound ? ' is-bound' : (BIND_CAND[s.id] ? ' is-ready' : ''));
-    bindBtn.textContent = '装订';
-    bindBtn.title = '部署版为只读：装订关系由编辑版保存后同步显示';
-    bindBtn.disabled = true;
-    el.appendChild(bindBtn);
-
+    /* 部署版只读：装订按钮已移除，装订关系完全由编辑版保存后同步显示 */
     if(mobile){
       // 卡片流不需要物理拖拽；轻点直接打开预览
       if(matches) el.addEventListener('click', (e) => {
@@ -909,7 +902,10 @@ const DESK_PHYSICS = {
   candidate: null,
   targetEl: null,
   group: null,
-  groupLocked: false
+  groupLocked: false,
+  root: null,
+  origRootX: 0,
+  origRootY: 0
 };
 
 // 全局桌面最高层级计数器
@@ -957,15 +953,20 @@ function moveBoundDescendants(sheet, baseX, baseY, movingSet){
   });
   bindDescendants(sheet.id).forEach(c => { delete c.__liveX; delete c.__liveY; });
 }
-// 抓住一张纸时，把它所在的整棵装订组合一起标记为同帧移动（含它自身的祖先链）
-function markGroupDragging(sheet, on){
-  const group = new Set();
+// 找到装订树最顶层的根纸（抓任意成员都以它为整组基准）
+function findBindRoot(sheet){
   let root = sheet, guard = 0;
   while(root && (root.boundTo || root.attachedTo) && guard++ < 50){
     const p = APP.sheets.find(x => x.id === (root.boundTo || root.attachedTo));
     if(!p) break;
     root = p;
   }
+  return root;
+}
+// 抓住一张纸时，把它所在的整棵装订组合一起标记为同帧移动（含它自身的祖先链）
+function markGroupDragging(sheet, on){
+  const group = new Set();
+  const root = findBindRoot(sheet);
   if(root){
     group.add(root.id);
     bindDescendants(root.id).forEach(d => group.add(d.id));
@@ -1033,34 +1034,29 @@ function initDragHandlers(){
       DESK_PHYSICS.hasMoved = true;
     }
 
-    const curX = DESK_PHYSICS.origX + dx;
-    const curY = DESK_PHYSICS.origY + dy;
     if(Math.hypot(dx, dy) > 4 && !DESK_PHYSICS.groupLocked){
       DESK_PHYSICS.groupLocked = true;
-      markGroupDragging(DESK_PHYSICS.sheet, true);
+      markGroupDragging(DESK_PHYSICS.root, true);
       setGroupLift(DESK_PHYSICS.group, true);
     }
-    DESK_PHYSICS.el.dataset.x = curX;
-    DESK_PHYSICS.el.dataset.y = curY;
-    DESK_PHYSICS.sheet.__liveX = curX;
-    DESK_PHYSICS.sheet.__liveY = curY;
 
-    // 拖动时保持当前自然角度（同一帧写 transform）
-    DESK_PHYSICS.el.style.transform = `translate(${curX}px, ${curY}px) rotate(${DESK_PHYSICS.sheet.rot || 0}deg)`;
-
-    // 装订组合内的每一张都在同一帧按实时父坐标到位
-    moveBoundDescendants(DESK_PHYSICS.sheet, curX, curY, DESK_PHYSICS.group);
-
-    // 悬停到另一张纸上方 → 装订按钮点亮（部署版只读，仅视觉提示）
-    if(DESK_PHYSICS.hasMoved){
-      const cand = findBindCandidate(DESK_PHYSICS.el, DESK_PHYSICS.sheet);
-      if(DESK_PHYSICS.targetEl) DESK_PHYSICS.targetEl.classList.remove('is-bind-target');
-      DESK_PHYSICS.candidate = cand;
-      DESK_PHYSICS.targetEl = cand ? cand.el : null;
-      if(cand) cand.el.classList.add('is-bind-target');
-      const bb = DESK_PHYSICS.el.querySelector('.sheet__bind');
-      if(bb) bb.classList.toggle('is-ready', Boolean(cand));
+    // 抓任意成员都以根纸的新坐标为唯一基准，整组按同一位移移动
+    const root = DESK_PHYSICS.root || DESK_PHYSICS.sheet;
+    const curRootX = DESK_PHYSICS.origRootX + dx;
+    const curRootY = DESK_PHYSICS.origRootY + dy;
+    root.x = curRootX;
+    root.y = curRootY;
+    root.__liveX = curRootX;
+    root.__liveY = curRootY;
+    const rootEl = document.querySelector(`.sheet[data-id="${root.id}"]`);
+    if(rootEl){
+      rootEl.dataset.x = curRootX;
+      rootEl.dataset.y = curRootY;
+      rootEl.style.transform = `translate(${curRootX}px, ${curRootY}px) rotate(${root.rot || 0}deg)`;
     }
+
+    // 子级（含被抓住的那张）位置由递归统一写入，同帧到位，相对偏移不变
+    moveBoundDescendants(root, curRootX, curRootY, DESK_PHYSICS.group);
   });
 
   document.addEventListener('mouseup', async () => {
@@ -1074,15 +1070,11 @@ function initDragHandlers(){
       if(DESK_PHYSICS.targetEl) DESK_PHYSICS.targetEl.classList.remove('is-bind-target');
 
       if(DESK_PHYSICS.hasMoved){
-        sheet.x = parseFloat(el.dataset.x || 0);
-        sheet.y = parseFloat(el.dataset.y || 0);
-        const parent = APP.sheets.find(x => x.id === (sheet.boundTo || sheet.attachedTo));
-        if(parent){
-          sheet.bx = (sheet.x || 0) - (parent.x || 0);
-          sheet.by = (sheet.y || 0) - (parent.y || 0);
-          delete sheet.ax; delete sheet.ay;
-        }
-        moveBoundDescendants(sheet, sheet.x, sheet.y, null);
+        const root = DESK_PHYSICS.root || sheet;
+        const rootEl = document.querySelector(`.sheet[data-id="${root.id}"]`);
+        root.x = parseFloat((rootEl && rootEl.dataset.x) || root.x);
+        root.y = parseFloat((rootEl && rootEl.dataset.y) || root.y);
+        // 子级坐标已在 mousemove 中按根实时坐标写入，装订相对偏移保持不变
       }
       // 始终保存 z 值（mousedown 时 bringSheetToFront 已更新 sheet.z）
       sheet.z = parseInt(el.style.zIndex || 1);
@@ -1101,10 +1093,11 @@ function initDragHandlers(){
 
     if(DESK_PHYSICS.group){
       if(DESK_PHYSICS.groupLocked) setGroupLift(DESK_PHYSICS.group, false);
-      markGroupDragging(DESK_PHYSICS.sheet, false);
+      markGroupDragging(DESK_PHYSICS.root || DESK_PHYSICS.sheet, false);
     }
     DESK_PHYSICS.el = null;
     DESK_PHYSICS.sheet = null;
+    DESK_PHYSICS.root = null;
     DESK_PHYSICS.candidate = null;
     DESK_PHYSICS.targetEl = null;
     DESK_PHYSICS.group = null;
@@ -1133,19 +1126,24 @@ function makeDraggable(el, sheet){
     if(e.target.closest('.sheet__quick-bar')) return;
     if(e.button !== 0) return;
 
-    // 1. 物理置顶：手指一抓，自动浮上最顶层
-    bringSheetToFront(el, sheet);
+    // 1. 抓住装订组任意成员时，都以根纸为基准抬起并置顶整棵树
+    const root = findBindRoot(sheet);
+    const rootEl = document.querySelector(`.sheet[data-id="${root.id}"]`);
+    bringSheetToFront(rootEl || el, root);
 
     // 2. 初始化物理抓起手势
     DESK_PHYSICS.active = true;
     DESK_PHYSICS.el = el;
     DESK_PHYSICS.sheet = sheet;
+    DESK_PHYSICS.root = root;
     DESK_PHYSICS.startX = e.clientX;
     DESK_PHYSICS.startY = e.clientY;
     DESK_PHYSICS.origX = parseFloat(el.dataset.x || 0);
     DESK_PHYSICS.origY = parseFloat(el.dataset.y || 0);
+    DESK_PHYSICS.origRootX = root.x || 0;
+    DESK_PHYSICS.origRootY = root.y || 0;
     DESK_PHYSICS.hasMoved = false;
-    DESK_PHYSICS.group = markGroupDragging(sheet, false);
+    DESK_PHYSICS.group = markGroupDragging(root, false);
     DESK_PHYSICS.groupLocked = false;
 
     el.classList.add('is-dragging');
@@ -1170,6 +1168,8 @@ function handleSheetClick(el, sheet){
     }
     return;
   }
+  // 只读部署版：便利贴保持摆放时的原始尺寸，点击不进入放大聚焦
+  if(sheet.isSticky) return;
   if(el.classList.contains('is-focused')){
     unfocusAllSheets();
   } else {

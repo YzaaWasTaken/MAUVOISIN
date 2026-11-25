@@ -121,7 +121,7 @@ img,video{-webkit-user-drag:none;user-select:none}
 
 .gallery__badge{position:absolute;top:6px;left:6px;font-size:9px;background:rgba(0,0,0,.7);color:#fff;padding:2px 6px;letter-spacing:.08em;backdrop-filter:blur(4px);pointer-events:none;z-index:3;border:1px solid rgba(255,255,255,.2)}
 .viewer__media-list{display:flex;flex-direction:column;gap:12px;width:100%}
-.viewer__media-list img,.viewer__media-list video{width:100%;height:auto;display:block;background:var(--surface)}
+.viewer__media-list img,.viewer__media-list video{width:100%;height:auto;display:block;background:transparent}
 .ed-gallery-previews{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .ed-gallery-thumb{width:60px;height:60px;position:relative;border:1px solid var(--line-2)}
 .ed-gallery-thumb img{width:100%;height:100%;object-fit:cover}
@@ -144,8 +144,8 @@ img,video{-webkit-user-drag:none;user-select:none}
 .viewer{position:fixed;inset:0;z-index:9500;background:var(--bg);opacity:0;pointer-events:none;transition:opacity .3s var(--ease);overflow-y:auto}
 .viewer.is-open{opacity:1;pointer-events:auto}
 .viewer__inner{max-width:900px;margin:0 auto;padding:60px 20px 80px;display:grid;grid-template-columns:1fr 320px;gap:24px;align-items:start}
-.viewer__media-wrap{position:relative;background:var(--surface);overflow:hidden}
-.viewer__media{width:100%;height:auto;display:block;max-height:80vh;object-fit:contain}
+.viewer__media-wrap{position:relative;background:transparent;overflow:hidden}
+.viewer__media{width:100%;height:auto;display:block;max-height:80vh;object-fit:contain;background:transparent}
 .viewer__close{position:fixed;top:12px;right:16px;font-size:14px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:var(--fg);color:var(--bg);cursor:none;z-index:9600;transition:transform .2s}
 .viewer__close:hover{transform:rotate(90deg)}
 .viewer__nav{position:fixed;top:50%;transform:translateY(-50%);font-size:18px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;color:var(--fg-dim);cursor:none;z-index:9600;transition:color .2s;background:var(--bg)}
@@ -248,6 +248,9 @@ img,video{-webkit-user-drag:none;user-select:none}
   background:transparent;
   pointer-events:none;
 }
+/* 图片类纸张不垫底色：点击查看/聚焦时只显示图片本身 */
+.sheet__inner.is-media{background:transparent}
+.sheet.is-focused .sheet__inner.is-media{box-shadow:none}
 
 /* 物理抓取状态（Elevation 悬空拿起效果） */
 .sheet.is-dragging{
@@ -258,10 +261,16 @@ img,video{-webkit-user-drag:none;user-select:none}
 .sheet.is-group-dragging{
   transition:none!important;
 }
-.sheet.is-dragging .sheet__inner,
-.sheet.is-lifted .sheet__inner{
+.sheet.is-dragging:not(.is-sticky) .sheet__inner,
+.sheet.is-lifted:not(.is-sticky) .sheet__inner{
   transform:scale(1.035);
   box-shadow:0 20px 45px rgba(0,0,0,.75),0 8px 16px rgba(0,0,0,.45);
+}
+/* 便利贴拿起/放下保持原尺寸，只加深阴影 */
+.sheet.is-sticky.is-dragging .sheet__inner,
+.sheet.is-sticky.is-lifted .sheet__inner{
+  transform:none;
+  box-shadow:0 14px 30px rgba(0,0,0,.62),0 4px 10px rgba(0,0,0,.4);
 }
 /* 装订组合内每张纸都跟随整组拿起/放下，视觉与被拖对象一致 */
 .sheet.is-lifted .sheet__inner{
@@ -272,8 +281,12 @@ img,video{-webkit-user-drag:none;user-select:none}
   62%{transform:scale(.986);box-shadow:0 8px 22px rgba(0,0,0,.5),0 3px 8px rgba(0,0,0,.32)}
   100%{transform:scale(1);box-shadow:0 4px 16px rgba(0,0,0,.5),0 1px 4px rgba(0,0,0,.3)}
 }
-.sheet.is-dropped .sheet__inner{
+.sheet.is-dropped:not(.is-sticky) .sheet__inner{
   animation:sheetDrop .28s var(--ease) both;
+}
+.sheet.is-sticky.is-dropped .sheet__inner{
+  animation:none;
+  transition:box-shadow .28s var(--ease);
 }
 
 /* 桌面内原地聚焦放大（Focus View） */
