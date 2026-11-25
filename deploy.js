@@ -855,8 +855,18 @@ function focusSheet(sheetId){
 
   const desk = document.getElementById('aboutDesk');
   const dw = desk.clientWidth, dh = desk.clientHeight;
-  const targetW = Math.min(560, dw - 80);
-  const targetH = Math.min(700, dh - 80);
+  let targetW, targetH;
+  if(s.isSticky){
+    // 便利贴：沿用摆放时的宽高比，只等比放大 + 摆正，不拉伸变形
+    const dim = computeSheetDim(s, null);
+    const maxSide = Math.min(560, dw - 80, dh - 80);
+    const k = maxSide / Math.max(dim.w, dim.h);
+    targetW = Math.round(dim.w * k);
+    targetH = Math.round(dim.h * k);
+  } else {
+    targetW = Math.min(560, dw - 80);
+    targetH = Math.min(700, dh - 80);
+  }
 
   const targetX = (dw - targetW) / 2;
   const targetY = (dh - targetH) / 2;
@@ -1168,8 +1178,7 @@ function handleSheetClick(el, sheet){
     }
     return;
   }
-  // 只读部署版：便利贴保持摆放时的原始尺寸，点击不进入放大聚焦
-  if(sheet.isSticky) return;
+  // 便利贴同样进入聚焦：按自身比例放大摆正（见 focusSheet），不拉伸变形
   if(el.classList.contains('is-focused')){
     unfocusAllSheets();
   } else {
