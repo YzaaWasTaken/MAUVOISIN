@@ -12,6 +12,9 @@
   var muted = false;
   try { muted = localStorage.getItem(MUTE_KEY) === '1'; } catch(e){}
 
+  // 音效暂定关闭：保留全部合成代码与接入点，待用户提供音频文件后改为播放文件即可
+  var ENABLED = false;
+
   var ctx = null, pinkBuf = null, whiteBuf = null;
 
   function ac(){
@@ -54,7 +57,7 @@
      原理：正弦振荡器做快速频率扫频（pop 高→低，bubble 低→高），
      叠加极短带通噪声瞬态增加"啵"的清晰度。时值 50~90ms。 */
   function pop(opts){
-    if(muted) return;
+    if(!ENABLED || muted) return;
     var c = ac(); if(!c) return;
     opts = opts || {};
     var t0 = c.currentTime + (opts.delay || 0);
@@ -92,7 +95,7 @@
      原理：基频 + 2/3 次泛音，正弦波指数衰减（越快的高频衰减越快），
      经高通去掉浑浊低频，再送短延迟反馈营造空间回声。 */
   function pluck(freq, opts){
-    if(muted) return;
+    if(!ENABLED || muted) return;
     var c = ac(); if(!c) return;
     opts = opts || {};
     var t0 = c.currentTime + (opts.delay || 0);
@@ -129,7 +132,7 @@
 
   // 纸张沙沙：粉噪 → 带通扫频 → 揉捏包络 → 低通柔化（书页音，保留）
   function swish(opts){
-    if(muted) return;
+    if(!ENABLED || muted) return;
     var c = ac(); if(!c) return;
     var t0 = c.currentTime + (opts.delay || 0);
     var dur = opts.dur || 0.22;
@@ -158,7 +161,7 @@
 
   // 低频托底：纸页落桌等
   function hit(freq, dur, opts){
-    if(muted) return;
+    if(!ENABLED || muted) return;
     var c = ac(); if(!c) return;
     opts = opts || {};
     var t0 = c.currentTime + (opts.delay || 0);
@@ -175,7 +178,7 @@
   }
 
   var SFX = {
-    unlock: function(){ ac(); },
+    unlock: function(){ if(ENABLED) ac(); },
 
     // 各类点击：Lips Pop 啵声 —— 清脆圆润，音高每次轻微随机
     click: function(){
@@ -232,11 +235,13 @@
       if(!muted) SFX.click();
       return muted;
     },
-    get muted(){ return muted; }
+    get muted(){ return muted; },
+    get enabled(){ return ENABLED; }
   };
 
   // 注入静态样式与静音开关按钮（不依赖 style.css 改动）
   function injectUI(){
+    if(!ENABLED) return;  // 音效关闭时不显示开关，代码保留待启用
     if(!document.getElementById('mau-sfx-style')){
       var st = document.createElement('style');
       st.id = 'mau-sfx-style';
