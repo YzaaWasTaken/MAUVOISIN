@@ -257,9 +257,17 @@ img,video{-webkit-user-drag:none;user-select:none}
   background:transparent;
   pointer-events:none;
 }
-/* 图片类纸张不垫底色：点击查看/聚焦时只显示图片本身 */
-.sheet__inner.is-media{background:transparent}
+/* 图片类纸张：贴纸效果——容器不垫底色、不画矩形投影，投影沿图片实体轮廓 */
+.sheet__inner.is-media{background:transparent;box-shadow:none!important;overflow:visible}
+.sheet__inner.is-media img{
+  filter:drop-shadow(0 2px 5px rgba(0,0,0,.5)) drop-shadow(0 1px 2px rgba(0,0,0,.35));
+  transition:filter .3s var(--ease),transform .3s var(--ease);
+}
+/* 聚焦查看：容器无矩形阴影，图片保留更明显的贴纸轮廓投影 */
 .sheet.is-focused .sheet__inner.is-media{box-shadow:none}
+.sheet.is-focused .sheet__inner.is-media img{
+  filter:drop-shadow(0 6px 18px rgba(0,0,0,.65)) drop-shadow(0 2px 5px rgba(0,0,0,.45));
+}
 
 /* 物理抓取状态（Elevation 悬空拿起效果） */
 .sheet.is-dragging{
@@ -274,6 +282,13 @@ img,video{-webkit-user-drag:none;user-select:none}
 .sheet.is-lifted:not(.is-sticky) .sheet__inner{
   transform:scale(1.035);
   box-shadow:0 20px 45px rgba(0,0,0,.75),0 8px 16px rgba(0,0,0,.45);
+}
+/* 贴纸：拿起时投影沿实体轮廓加深，容器仍不画矩形阴影 */
+.sheet.is-dragging:not(.is-sticky):not(.is-archive) .sheet__inner.is-media,
+.sheet.is-lifted:not(.is-sticky):not(.is-archive) .sheet__inner.is-media{box-shadow:none!important}
+.sheet.is-dragging:not(.is-sticky) .sheet__inner.is-media img,
+.sheet.is-lifted:not(.is-sticky) .sheet__inner.is-media img{
+  filter:drop-shadow(0 16px 26px rgba(0,0,0,.72)) drop-shadow(0 5px 10px rgba(0,0,0,.5));
 }
 /* 便利贴拿起/放下保持原尺寸，只加深阴影 */
 .sheet.is-sticky.is-dragging .sheet__inner,
@@ -293,6 +308,16 @@ img,video{-webkit-user-drag:none;user-select:none}
 .sheet.is-dropped:not(.is-sticky) .sheet__inner{
   animation:sheetDrop .28s var(--ease) both;
 }
+/* 贴纸落下：容器不参与矩形阴影动画，改由图片轮廓投影过渡 */
+.sheet.is-dropped:not(.is-sticky) .sheet__inner.is-media{animation:none;box-shadow:none!important}
+.sheet.is-dropped:not(.is-sticky) .sheet__inner.is-media img{
+  animation:stickerDrop .28s var(--ease) both;
+}
+@keyframes stickerDrop{
+  0%{transform:scale(1.035);filter:drop-shadow(0 16px 26px rgba(0,0,0,.72)) drop-shadow(0 5px 10px rgba(0,0,0,.5))}
+  62%{transform:scale(.986);filter:drop-shadow(0 7px 14px rgba(0,0,0,.55)) drop-shadow(0 2px 5px rgba(0,0,0,.4))}
+  100%{transform:scale(1);filter:drop-shadow(0 2px 5px rgba(0,0,0,.5)) drop-shadow(0 1px 2px rgba(0,0,0,.35))}
+}
 .sheet.is-sticky.is-dropped .sheet__inner{
   animation:none;
   transition:box-shadow .28s var(--ease);
@@ -307,6 +332,7 @@ img,video{-webkit-user-drag:none;user-select:none}
 .sheet.is-focused .sheet__inner{
   box-shadow:0 30px 80px rgba(0,0,0,.9),0 10px 30px rgba(0,0,0,.6);
 }
+.sheet.is-focused .sheet__inner.is-media{box-shadow:none!important}
 .sheet.is-dimmed{
   opacity:.0;
   filter:grayscale(.6);
