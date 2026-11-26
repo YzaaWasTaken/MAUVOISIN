@@ -2094,6 +2094,52 @@ function selectArticleFolder(id){
   renderArticles();
 }
 
+/* 扁平线条文档图标（替换 emoji，去掉立体/阴影感） */
+function docIcon(locked){
+  if(locked){
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="10" width="15" height="10" rx="1"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><path d="M12 14v2"/></svg>';
+  }
+  return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M9 12h6M9 16h6"/></svg>';
+}
+
+function getArticleSummaries(a){
+  if(Array.isArray(a && a.summaries)) return a.summaries;
+  if(a && a.summary) return [a.summary];
+  return [];
+}
+
+/* 阅读器滚动渐显：每段内容第一次进入视口时淡入，之后不再重播 */
+const REVEALED_SECTIONS = new Set();
+function initReaderReveal(articleId){
+  const root = document.getElementById('articleReader');
+  const scope = document.getElementById('articleContent');
+  if(!root || !scope) return;
+  const items = [...scope.querySelectorAll('h1,h2,h3,p,blockquote,ul,ol,pre,img,hr,table,div')]
+    .filter(el => el.matches('img,hr,table') || el.textContent.trim() || el.querySelector('img,hr,table'));
+  if(!items.length) return;
+  const keyOf = el => articleId + ':' + items.indexOf(el);
+  items.forEach((el, i) => {
+    el.classList.add('reveal-item');
+    el.style.setProperty('--rv-i', Math.min(i, 8));
+    if(REVEALED_SECTIONS.has(keyOf(el))) el.classList.add('is-revealed', 'no-reveal');
+  });
+  const pending = items.filter(el => !el.classList.contains('is-revealed'));
+  if(!pending.length) return;
+  if(!('IntersectionObserver' in window)){
+    pending.forEach(el => { el.classList.add('is-revealed'); REVEALED_SECTIONS.add(keyOf(el)); });
+    return;
+  }
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(en => {
+      if(!en.isIntersecting) return;
+      en.target.classList.add('is-revealed');
+      REVEALED_SECTIONS.add(keyOf(en.target));
+      io.unobserve(en.target);
+    });
+  }, {root, threshold: 0.08, rootMargin: '0px 0px -6% 0px'});
+  pending.forEach(el => io.observe(el));
+}
+
 function renderArticleList(){
   const content = document.getElementById('articlesContent');
   const folder = APP.articleFolders.find(f => f.id === APP.activeArticleFolder);
@@ -2101,18 +2147,26 @@ function renderArticleList(){
 
   let html = '<div class="articles-list">';
   html += '<div class="articles-list__header">';
+  html += '<div class="articles-list__header-top">';
   html += '<span class="articles-list__title">' + esc(folder ? folder.name : 'FOLDER') + '</span>';
+  html += '</div>';
+  const forwardText = folder && folder.forward ? folder.forward : '';
+  if(forwardText){
+    html += '<div class="articles-list__forward">';
+    html += '<div class="articles-list__forward-head"><span class="articles-list__forward-label">FORWARD <em>· GUIDE</em></span></div>';
+    html += '<div class="articles-list__forward-text">' + esc(forwardText).replace(/\n/g, '<br>') + '</div>';
+    html += '</div>';
+  }
   html += '</div>';
 
   if(!docs.length){
     html += '<div class="articles-empty"><p>No articles in this folder.</p></div>';
   } else {
-    docs.forEach(d => {
+    docs.forEach((d, i) => {
       const excerpt = stripHtml(d.content || '').slice(0, 80);
       const dateStr = formatDate(d.updated || d.created);
-      const lockedIcon = d.locked ? '🔒' : '📄';
-      html += '<div class="doc-card" onclick="openArticleReader(\'' + d.id + '\')" data-cursor-title="' + escAttr(d.title || 'UNTITLED') + '">';
-      html += '<span class="doc-card__icon ' + (d.locked ? 'doc-card__icon--locked' : '') + '">' + lockedIcon + '</span>';
+      html += '<div class="doc-card" style="--card-i:' + Math.min(i, 10) + '" onclick="openArticleReader(\'' + d.id + '\')" data-cursor-title="' + escAttr(d.title || 'UNTITLED') + '">';
+      html += '<span class="doc-card__icon ' + (d.locked ? 'doc-card__icon--locked' : '') + '">' + docIcon(d.locked) + '</span>';
       html += '<div class="doc-card__body">';
       html += '<div class="doc-card__title">' + esc(d.title || 'UNTITLED') + '</div>';
       if(excerpt) html += '<div class="doc-card__excerpt">' + esc(excerpt) + '</div>';
@@ -2126,9 +2180,7 @@ function renderArticleList(){
   content.innerHTML = html;
 
   requestAnimationFrame(() => {
-    content.querySelectorAll('.doc-card').forEach((el, i) => {
-      setTimeout(() => el.classList.add('is-in'), i * 50);
-    });
+    content.querySelectorAll('.doc-card').forEach(el => el.classList.add('is-in'));
   });
 }
 
@@ -2186,13 +2238,22 @@ function openArticleReader(id, editMode){
   body.innerHTML = buildReaderHTML(a);
   generateTOC();
   reader.scrollTop = 0;
+  initReaderReveal(id);
 }
 
 function buildReaderHTML(a){
   const fontSel = a.fontSize || 'medium';
+  const summaries = getArticleSummaries(a);
+  const summaryHTML = summaries.length ? `
+    <div class="article-summaries">
+      ${summaries.map(s => '<div class="article-summary"><span class="article-summary__label">Summary:</span><span class="article-summary__text">' + esc(s) + '</span></div>').join('')}
+    </div>
+    <div class="article-front-divider article-front-divider--reader"><span>◇</span></div>
+  ` : '';
   return `
     <h1 class="article-reader__doc-title" id="docTitleDisplay">${esc(a.title || 'UNTITLED')}</h1>
     <div class="article-reader__doc-meta">${formatDate(a.updated||a.created)} · ${a.locked ? 'LOCKED' : 'DRAFT'}</div>
+    ${summaryHTML}
     <div class="article-reader__content" id="articleContent" data-font="${fontSel}">${a.content || '<p style="color:var(--fg-dim)">No content yet.</p>'}</div>
   `;
 }
