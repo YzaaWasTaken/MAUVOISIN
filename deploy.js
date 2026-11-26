@@ -2163,7 +2163,8 @@ function renderArticleList(){
     html += '<div class="articles-empty"><p>No articles in this folder.</p></div>';
   } else {
     docs.forEach((d, i) => {
-      const excerpt = stripHtml(d.content || '').slice(0, 80);
+      const summaries = getArticleSummaries(d);
+      const excerpt = summaries.length ? summaries.map(x => stripHtml(x)).filter(Boolean).join(' ').slice(0, 80) : '';
       const dateStr = formatDate(d.updated || d.created);
       html += '<div class="doc-card" style="--card-i:' + Math.min(i, 10) + '" onclick="openArticleReader(\'' + d.id + '\')" data-cursor-title="' + escAttr(d.title || 'UNTITLED') + '">';
       html += '<span class="doc-card__icon ' + (d.locked ? 'doc-card__icon--locked' : '') + '">' + docIcon(d.locked) + '</span>';
